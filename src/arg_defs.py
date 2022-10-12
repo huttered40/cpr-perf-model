@@ -25,7 +25,7 @@ def add_general_arguments(parser):
         metavar='int',
         help='Number of randomly sampled inputs (default: 0)')
     parser.add_argument(
-        '--cell_counts',
+        '--ngrid_pts',
         type=str,
         default='',
         metavar='str',
