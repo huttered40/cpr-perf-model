@@ -2,11 +2,11 @@
 
 Welcome!
 
-This repository hosts a Python framework for high-dimensional performance modeling via CP tensor decomposition.
+This repository hosts a software framework for high-dimensional performance modeling via CP tensor decomposition.
 Modeling domains are characterized as multi-dimensional regular grid.
 Performance data sampled across these grid comprise multi-dimensional arrays (i.e., tensors).
 
-This framework configures canonical-polyadic (CP) tensor decomposition models from provided performance data and
+This Python (v2.7) framework configures canonical-polyadic (CP) tensor decomposition models from provided performance data and
 leverages high-performance tensor computation software publically available within the Cyclops Tensor Framework.
 
 Performance data is specified separately as training data within file `training_file` and test data within file `test_file`.
