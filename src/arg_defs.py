@@ -7,71 +7,11 @@ def add_general_arguments(parser):
         metavar='int',
         help='Boolean decision whether to write column headers to CSV file (default: 0)')
     parser.add_argument(
-        '--dense_grid_exist',
-        type=int,
-        default='0',
-        metavar='int',
-        help='Boolean decision whether to test completion against dense grid (default: 0)')
-    parser.add_argument(
-        '--grid_test_set',
-        type=int,
-        default='0',
-        metavar='int',
-        help='')
-    parser.add_argument(
-        '--kernel_name',
-        type=str,
-        default='',
-        metavar='str',
-        help='Kernel name (default: )')
-    parser.add_argument(
         '--scale_mode',
         type=str,
         default='strong',
         metavar='str',
         help='Kernel name (default: )')
-    parser.add_argument(
-        '--transfer_learning_mode',
-        type=str,
-        default='',
-        metavar='',
-        help=' (default: )')
-    parser.add_argument(
-        '--kernel_type',
-        type=int,
-        default=0,
-        metavar='int',
-        help='ID specifying task, hardware, and/or tuning parameters to evaluate (default: 0)')
-    parser.add_argument(
-        '--noise_level',
-        type=float,
-        default=0,
-        metavar='float',
-        help='ID specifying task, hardware, and/or tuning parameters to evaluate (default: 0)')
-    parser.add_argument(
-        '--thread_count',
-        type=int,
-        default=0,
-        metavar='int',
-        help='ID specifying task, hardware, and/or tuning parameters to evaluate (default: 0)')
-    parser.add_argument(
-        '--ppn',
-        type=int,
-        default=0,
-        metavar='int',
-        help='ID specifying task, hardware, and/or tuning parameters to evaluate (default: 0)')
-    parser.add_argument(
-        '--training_set_niter',
-        type=int,
-        default=0,
-        metavar='int',
-        help='Number of executions per input tuple for training set (default: 0)')
-    parser.add_argument(
-        '--test_set_niter',
-        type=int,
-        default=0,
-        metavar='int',
-        help='Number of executions per input tuple for test set (default: 0)')
     parser.add_argument(
         '--training_set_size',
         type=int,
@@ -79,23 +19,11 @@ def add_general_arguments(parser):
         metavar='int',
         help='Number of randomly sampled inputs constrained to grid-points (default: 0). Typically a smaller integer than training_set_id')
     parser.add_argument(
-        '--training_set_id',
-        type=int,
-        default=0,
-        metavar='int',
-        help='Training set File ID (default: 0)')
-    parser.add_argument(
         '--test_set_size',
         type=int,
         default=0,
         metavar='int',
         help='Number of randomly sampled inputs (default: 0)')
-    parser.add_argument(
-        '--grid_type',
-        type=int,
-        default="0",
-        metavar='int',
-        help='ID for discretization granularity of kernel configuration space. It can have a different meaning across kernels (default: 0)')
     parser.add_argument(
         '--cell_counts',
         type=str,
@@ -103,23 +31,11 @@ def add_general_arguments(parser):
         metavar='str',
         help='ID for discretization granularity of kernel configuration space. It can have a different meaning across kernels (default: 0)')
     parser.add_argument(
-        '--cell_size',
-        type=int,
-        default="1",
-        metavar='int',
-        help='')
-    parser.add_argument(
         '--check_training_error',
         type=int,
         default="0",
         metavar='int',
         help='')
-    parser.add_argument(
-        '--grid_types',
-        type=str,
-        default="0",
-        metavar='str',
-        help='ID for discretization granularity of kernel configuration space. It can have a different meaning across kernels (default: 0)')
     parser.add_argument(
         '--cell_spacing',
         type=str,
@@ -144,12 +60,6 @@ def add_general_arguments(parser):
         default='MSE',
         metavar='str',
         help='Error metric characterizing loss function (default: MSE)')
-    parser.add_argument(
-        '--predictor_transform',
-        type=int,
-        default='0',
-        metavar='int',
-        help='Transformation to apply to predictors (default: 0 (No transformation))')
     parser.add_argument(
         '--reg',
         type=str,
@@ -211,12 +121,6 @@ def add_general_arguments(parser):
         metavar='int',
         help='ID specifying whether to use Numpy for evaluation. Only valid when using a single process and will switch automatically (default: 1)')
     parser.add_argument(
-        '--tensor_dim',
-        type=int,
-        default=0,
-        metavar='int',
-        help='Number of tensor modes for CP-ALS (can be less than or equal to number of kernel parameters (default: 0)')
-    parser.add_argument(
         '--tensor_map',
         type=str,
         default='',
@@ -228,111 +132,6 @@ def add_general_arguments(parser):
         default='',
         metavar='str',
         help='Comma-delimited tuple representing which parameter modes to interpolate (default: )')
-
-    parser.add_argument(
-        '--nbases',
-        type=str,
-        default='1',
-        metavar='str',
-        help='Comma-delimited tuple representing the number of bases in a least-squares method (what each basis refers to is kernel-specific; see files) (default: 1)')
-    parser.add_argument(
-        '--spline_degrees',
-        type=str,
-        default="1,2,3,4,5",
-        metavar='str',
-        help='Comma-delimited list of number of degrees for splines to include for a MARS model (default: 1,2,3,4,5)')
-    parser.add_argument(
-        '--tree_depth',
-        type=str,
-        default="10",
-        metavar='str',
-        help='Comma-delimited list (default: 1,2,3,4,5)')
-    parser.add_argument(
-        '--ntrees',
-        type=str,
-        default="100",
-        metavar='str',
-        help='Comma-delimited list (default: 1,2,3,4,5)')
-    parser.add_argument(
-        '--nneighbors',
-        type=str,
-        default="5",
-        metavar='str',
-        help='Comma-delimited list (default: 1,2,3,4,5)')
-    parser.add_argument(
-        '--nlevels',
-        type=str,
-        default='3',
-        metavar='str',
-        help='Comma-delimited list of number of sparse grid levels (default: 3)')
-    parser.add_argument(
-        '--nadaptpts',
-        type=str,
-        default='3',
-        metavar='str',
-        help='Comma-delimited list of number of grid-points to update (default: 3)')
-    parser.add_argument(
-        '--nrefinements',
-        type=int,
-        default='5',
-        metavar='int',
-        help='Number of sparse-grid refinements (default: 5)')
-    parser.add_argument(
-        '--test_per_refinement',
-        type=int,
-        default='1',
-        metavar='int',
-        help='Signifies whether to test model on validation set with each refinement of grid before further refinement (default: 1)')
-
-
-    parser.add_argument(
-        '--make_heat_plot',
-        type=int,
-        default="0",
-        metavar='int',
-        help='')
-    parser.add_argument(
-        '--analyze_hyperplanes',
-        type=int,
-        default=0,
-        metavar='int',
-        help='Number of randomly sampled inputs')
-    parser.add_argument(
-        '--analyze_projections',
-        type=int,
-        default=0,
-        metavar='int',
-        help='Number of randomly sampled inputs')
-    parser.add_argument(
-        '--error_mode',
-        type=int,
-        default=0,
-        metavar='int',
-        help='Number of randomly sampled inputs')
-    parser.add_argument(
-        '--fold_id',
-        type=int,
-        default=0,
-        metavar='int',
-        help='')
-    parser.add_argument(
-        '--hidden_layer_sizes',
-        type=str,
-        default='100',
-        metavar='str',
-        help='Comma-delimited list of number of grid-points to update (default: 3)')
-    parser.add_argument(
-        '--activation',
-        type=str,
-        default='relu',
-        metavar='str',
-        help='Comma-delimited list of number of grid-points to update (default: 3)')
-    parser.add_argument(
-        '--solver',
-        type=str,
-        default='adam',
-        metavar='str',
-        help='Comma-delimited list of number of grid-points to update (default: 3)')
     parser.add_argument(
         '--training_file',
         type=str,
