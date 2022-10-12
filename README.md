@@ -77,7 +77,7 @@ A complete list of runtime arguments is provided below:
 | tensor_dim | as specified in input |
 | ngrid_pts | as specified in input |
 | cell_spacing | as specified in input |
-| density | percentage of grid-cells tht have at least one sample |
+| density | percentage of grid-cells that have at least one sample |
 | response_transform | as specified in input |
 | reg | as specified in input |
 | nals_sweeps | as specified in input |
