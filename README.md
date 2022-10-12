@@ -91,3 +91,7 @@ A complete list of runtime arguments is provided below:
 | smape |symmetric mean absolute percentage error |
 | tensor_gen_time | time to generate tensor from data |
 | model_config_time | time to configure model |
+
+## Build
+Clone `https://github.com/navjo2323/ctf` and update `PYTHONPATH` to reference the `lib_python` subdirectory within the cloned directory.
+Follow the build instructions in the provided repository link.
