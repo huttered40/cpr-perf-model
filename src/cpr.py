@@ -8,8 +8,6 @@ import arg_defs as arg_defs
 
 import backend.ctf_ext as tenpy
 from backend.cpd_opt import cpd_als,cpd_amn
-from backend.ccd import run_CCD
-from backend.sgd import sparse_SGD
 
 glob_comm = ctf.comm()
 
@@ -89,13 +87,13 @@ def generate_models(reg,nals_sweeps,cp_rank,element_len):
 def cpc(_T,_omega,_guess,_reg_als,_tol_als,_num_iter_als,_error_metric,_tol_newton, _num_iter_newton,_barrier_start,_barrier_reduction_factor):
     Tincomplete = _T.copy()
     if (_error_metric == "MSE"):
-        guess,rmse,n_newton_iterations,n_newton_restarts = cpd_als(_error_metric, tenpy, Tincomplete, _omega, _guess, _reg_als, _tol_als, _num_iter_als)
+        guess,loss,n_newton_iterations,n_newton_restarts = cpd_als(_error_metric, tenpy, Tincomplete, _omega, _guess, _reg_als, _tol_als, _num_iter_als)
     else:
-        guess,rmse,n_newton_iterations,n_newton_restarts = cpd_amn(_error_metric,\
+        guess,loss,n_newton_iterations,n_newton_restarts = cpd_amn(_error_metric,\
                                                              tenpy, Tincomplete, _omega, _guess, _reg_als, _tol_als,\
                                                               _num_iter_als, _tol_newton, _num_iter_newton,\
                                                               _barrier_start,_barrier_reduction_factor)
-    return (guess,rmse,n_newton_iterations,n_newton_restarts)
+    return (guess,loss,n_newton_iterations,n_newton_restarts)
 
 if __name__ == "__main__":
 
@@ -109,12 +107,6 @@ if __name__ == "__main__":
         numpy_eval = args.numpy_eval
 
     np.random.seed(10)
-    """
-    Assumptions:
-    - All configurations of parameters are non-negative. They must at least not contain categorical values like strings.
-      Those most be converted to integers first.
-    - Training/Test data is comma-delimited.
-    """
     print("Location of training data: %s"%(args.training_file))
     print("Location of test data: %s"%(args.test_file))
     print("Location of output data: %s"%(args.output_file))
@@ -192,16 +184,16 @@ if __name__ == "__main__":
     cell_spacing = [int(n) for n in args.cell_spacing.split(',')]
     print("cell_spacing - ", cell_spacing)
     assert(len(cell_spacing)==len(param_list))
-    cell_counts = [int(n) for n in args.cell_counts.split(',')]
-    print("cell_counts - ", cell_counts)
-    assert(len(cell_counts)==len(param_list))
+    ngrid_pts = [int(n) for n in args.ngrid_pts.split(',')]
+    print("ngrid_pts - ", ngrid_pts)
+    assert(len(ngrid_pts)==len(param_list))
 
     #TODO: How to deal with multipliers to mode_ranges dependent on a function of other modes (e.g., sqrt(thread_count))
     cell_nodes = []
     num_grid_pts=1
     contract_str = ''
     for i in range(len(param_list)):
-	cell_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],cell_counts[i],cell_spacing[i])))
+	cell_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],cell_spacing[i])))
         contract_str += 'r,'
 	for j in range(1,len(cell_nodes[-1])):
 	    if (cell_nodes[-1][j] <= cell_nodes[-1][j-1]):
@@ -317,7 +309,7 @@ if __name__ == "__main__":
 	    else:
                 assert(0)
         start_time_solve = time.time()
-	FM,rmse,n_newton_iterations,n_newton_restarts=cpc(Tsparse,omega,guess,model_parameters[0],args.tol_als,model_parameters[1],args.error_metric,\
+	FM,loss,n_newton_iterations,n_newton_restarts=cpc(Tsparse,omega,guess,model_parameters[0],args.tol_als,model_parameters[1],args.error_metric,\
                     args.tol_newton, args.max_iter_newton, args.barrier_start, args.barrier_reduction_factor)
 
         timers[1] += (time.time()-start_time_solve)
@@ -413,7 +405,7 @@ if __name__ == "__main__":
 	validation_error_metrics[7] = np.std(prediction_errors[1],ddof=1)
 	validation_error_metrics[8] = np.average(prediction_errors[2])
 	validation_error_metrics[9] = np.std(prediction_errors[2],ddof=1)
-        validation_error_metrics[10] = rmse
+        validation_error_metrics[10] = loss
 	print("Validation Error for (rank=%d,#sweeps=%d,element_mode_len=%d,reg=%f) is "%(model_parameters[2],model_parameters[1],model_parameters[3],model_parameters[0]),validation_error_metrics, " with time: ", timers)
 	if (validation_error_metrics[2] < opt_error_metrics[2]):
             opt_model_parameters = copy.deepcopy(model_parameters)
@@ -426,7 +418,6 @@ if __name__ == "__main__":
     start_time = time.time()
 
     model_predictions = []
-    model_projected_sets = []
     for k in range(len(test_nodes)):
 	input_tuple = test_inputs[k,:]*1.	# Note: without this cast from into to float, interpolation produces zeros
 	node = test_nodes[k]
@@ -488,15 +479,6 @@ if __name__ == "__main__":
 	    model_val += coeff * t_val
 
 	model_predictions.append(model_val)
-        model_projected_sets.append([])
-        for j in range(len(node)):
-            model_projected_sets[-1].append(Projected_Omegas[j][node[j]])
-        min_set_size = min(model_projected_sets[-1])
-        max_set_size = max(model_projected_sets[-1])
-        avg_set_size = sum(model_projected_sets[-1]) * 1. / len(model_projected_sets[-1])
-        model_projected_sets[-1].append(min_set_size)
-        model_projected_sets[-1].append(max_set_size)
-        model_projected_sets[-1].append(avg_set_size)
 
     timers[3] += (time.time()-start_time)
 
@@ -576,98 +558,46 @@ if __name__ == "__main__":
         training_error_metrics[2] = -1
 
     columns = (\
-        "training_set_size",\
-        "test_set_size",\
-        "test_set_split_percentage",\
-        "nparams",\
-        "tensor_dim",\
-        "cell_count",\
-        "cell_spacing",\
-        "num_grid_pts",\
-        "density",\
-        "response_transform",\
-        "reg",\
-        "NumALSsweeps",\
-        "CP_rank",\
-        "element_mode_len",\
-        "interp_map",\
-        "tensor_map",\
-	"TrE_Loss",\
-	"TrE_Mean_MLogQ_noabs",\
-	"TrE_Std_MLogQ_noabs",\
-	"TrE_Mean_MLogQ",\
-	"TrE_Std_MLogQ",\
-	"TrE_Mean_MLogQ2",\
-	"TrE_Std_MLogQ2",\
-	"TrE_Mean_GMRE",\
-	"TrE_Std_GMRE",\
-	"TrE_Mean_MAPE",\
-	"TrE_Std_MAPE",\
-	"TrE_Mean_SMAPE",\
-	"TrE_Std_SMAPE",\
-	"TeE_Mean_MLogQ_noabs",\
-	"TeE_Std_MLogQ_noabs",\
-	"TeE_Mean_MLogQ",\
-	"TeE_Std_MLogQ",\
-	"TeE_Mean_MLogQ2",\
-	"TeE_Std_MLogQ2",\
-	"TeE_Mean_GMRE",\
-	"TeE_Std_GMRE",\
-	"TeE_Mean_MAPE",\
-	"TeE_Std_MAPE",\
-	"TeE_Mean_SMAPE",\
-	"TeE_Std_SMAPE",\
-        "Generation_time",\
-        "Solve_time",\
-        "CrossValidation_time",\
-        "TestSet_Evaluation_time",\
+        "input:training_set_size",\
+        "input:test_set_size",\
+        "input:tensor_dim",\
+        "input:ngrid_pts",\
+        "input:cell_spacing",\
+        "input:density",\
+        "input:response_transform",\
+        "input:reg",\
+        "input:nals_sweeps",\
+        "input:cp_rank",\
+        "input:interp_map",\
+        "error:loss",\
+	"error:mlogq",\
+	"error:mlogq2",\
+	"error:gmre",\
+	"error:mape",\
+	"error:smape",\
+        "time:tensor_generation",\
+        "time:model_configuration",\
     )
     test_results_dict = {0:{\
         columns[0] : training_set_size,\
         columns[1] : test_set_size,\
-        columns[2] : args.test_set_split_percentage,\
-        columns[3] : len(param_list),\
-        columns[4] : len(tensor_mode_lengths),\
-        columns[5] : "-".join([str(n) for n in cell_counts]),\
-        columns[6] : "-".join([str(n) for n in cell_spacing]),\
-        columns[7] : num_grid_pts,\
-        columns[8] : density,\
-        columns[9] : args.response_transform,\
-        columns[10] : opt_model_parameters[0],\
-        columns[11] : opt_model_parameters[1],\
-        columns[12] : opt_model_parameters[2],\
-        columns[13] : opt_model_parameters[3],\
-        columns[14] : "-".join([str(n) for n in interp_map]),\
-        columns[15] : "-".join([str(n) for n in tensor_map]),\
-	columns[16] : training_error_metrics[0],\
-	columns[17] : training_error_metrics[1],\
-	columns[18] : training_error_metrics[2],\
-	columns[19] : training_error_metrics[3],\
-	columns[20] : training_error_metrics[4],\
-	columns[21] : training_error_metrics[5],\
-	columns[22] : training_error_metrics[6],\
-	columns[23] : training_error_metrics[7],\
-	columns[24] : training_error_metrics[8],\
-	columns[25] : training_error_metrics[9],\
-	columns[26] : training_error_metrics[10],\
-	columns[27] : training_error_metrics[11],\
-	columns[28] : training_error_metrics[12],\
-	columns[29] : test_error_metrics[0],\
-	columns[30] : test_error_metrics[1],\
-	columns[31] : test_error_metrics[2],\
-	columns[32] : test_error_metrics[3],\
-	columns[33] : test_error_metrics[4],\
-	columns[34] : test_error_metrics[5],\
-	columns[35] : test_error_metrics[6],\
-	columns[36] : test_error_metrics[7],\
-	columns[37] : test_error_metrics[8],\
-	columns[38] : test_error_metrics[9],\
-	columns[39] : test_error_metrics[10],\
-	columns[40] : test_error_metrics[11],\
-        columns[41] : timers[0],\
-        columns[42] : timers[1],\
-        columns[43] : timers[2],\
-        columns[44] : timers[3],\
+        columns[2] : len(tensor_mode_lengths),\
+        columns[3] : "-".join([str(n) for n in ngrid_pts]),\
+        columns[4] : "-".join([str(n) for n in cell_spacing]),\
+        columns[5] : density,\
+        columns[6] : args.response_transform,\
+        columns[7] : opt_model_parameters[0],\
+        columns[8] : opt_model_parameters[1],\
+        columns[9] : opt_model_parameters[2],\
+        columns[10] : "-".join([str(n) for n in interp_map]),\
+	columns[11] : training_error_metrics[0],\
+	columns[12] : test_error_metrics[2],\
+	columns[13] : test_error_metrics[4],\
+	columns[14] : test_error_metrics[6],\
+	columns[15] : test_error_metrics[8],\
+	columns[16] : test_error_metrics[10],\
+        columns[17] : timers[0],\
+        columns[18] : timers[2],\
     } }
     test_results_df = pd.DataFrame(data=test_results_dict,index=columns).T
     test_results_df.to_csv("%s"%(args.output_file),sep=',',header=1,mode="a")
