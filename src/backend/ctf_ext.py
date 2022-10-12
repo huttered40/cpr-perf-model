@@ -57,7 +57,8 @@ def abs_sum(T):
     return ctf.sum(ctf.abs(T))
 
 def Solve_Factor(T,mats,rhs,num,regu,mu):
-    return ctf.Solve_Factor(T,mats,rhs,num,regu,mu)
+    #return ctf.Solve_Factor(T,mats,rhs,num,regu,mu)
+    return ctf.Solve_Factor(T,mats,rhs,num,regu)
     
 def list_vecnormsq(list_A):
     l = [i**2 for i in list_A]
