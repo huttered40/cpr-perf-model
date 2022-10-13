@@ -3,11 +3,20 @@
 Welcome!
 
 This repository hosts a software framework for high-dimensional performance modeling via CP tensor decomposition.
-Modeling domains are characterized as multi-dimensional regular grid.
+Modeling domains are characterized as multi-dimensional regular grids.
 Performance data sampled across these grid comprise multi-dimensional arrays (i.e., tensors).
+We map execution time measurements for each configuration of application benchmark parameters to a tensor and use this tensor to predict the execution time of a given configuration.
 
 This Python (v2.7) framework configures canonical-polyadic (CP) tensor decomposition models from provided performance data and
 leverages high-performance tensor computation software publically available within the Cyclops Tensor Framework.
+
+## Highlights
+This framework enables both **user-directed discretization** of high-dimensional modeling domains and **user-selected loss functions**.
+Our experiments have shown that mean-squared loss functions with logarithmic transformations to execution data are most accurate, efficient, and robust to roundoff error during model optimization. Our interface therefore is limited to this class of loss functions.
+
+## Build and Use
+Clone `https://github.com/navjo2323/ctf` and update `PYTHONPATH` to reference the `lib_python` subdirectory within the cloned directory.
+Follow the build instructions in the provided repository link.
 
 Performance data is specified separately as training data within file `training_file` and test data within file `test_file`.
 Parameters and data within these files must be comma-delimited and castable to non-negative floats (e.g., categorical parameters must first be mapped onto a non-negative real number scale).
@@ -91,7 +100,3 @@ A complete list of runtime arguments is provided below:
 | smape |symmetric mean absolute percentage error |
 | tensor_gen_time | time to generate tensor from data |
 | model_config_time | time to configure model |
-
-## Build
-Clone `https://github.com/navjo2323/ctf` and update `PYTHONPATH` to reference the `lib_python` subdirectory within the cloned directory.
-Follow the build instructions in the provided repository link.
