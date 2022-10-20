@@ -12,7 +12,7 @@ leverages high-performance tensor computation software publically available with
 
 ## Highlights
 This framework enables **user-directed discretization** of high-dimensional modeling domains.
-Our experiments have shown that mean-squared loss functions with logarithmic transformations to execution data are most accurate, efficient, and robust to roundoff error during model optimization. Our interface therefore is limited to this class of loss functions, although CP decompositions may be optimized using alternative loss functions.
+Our experiments have shown that mean-squared loss functions with logarithmic transformations to execution data are most accurate, efficient, and robust to roundoff error during model optimization. Our interface therefore is limited to this class of loss functions. See our preprint for experimental studies: https://arxiv.org/abs/2210.10184
 
 ## Build and Use
 Clone `https://github.com/navjo2323/ctf` and update `PYTHONPATH` to reference the `lib_python` subdirectory within the cloned directory.
