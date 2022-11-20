@@ -239,6 +239,7 @@ if __name__ == "__main__":
     save_training_nodes = []
     node_data_dict = {}
     node_count_dict = {}
+    #tfile = open("gemm-%dx%dx%d.csv"%(ngrid_pts[0],ngrid_pts[1],ngrid_pts[2]),'w')
     for i in range(training_set_size):
 	input_tuple = training_inputs[i,:]
 	node_key = []
@@ -259,6 +260,8 @@ if __name__ == "__main__":
     for key in node_count_dict.keys():
 	training_node_list.append(key)
 	training_data_list.append(node_data_dict[key]/node_count_dict[key])
+        #tfile.write("%d,%d,%d,%d,%g\n"%(0,cell_nodes[0][key[0]],cell_nodes[1][key[1]],cell_nodes[2][key[2]],training_data_list[-1]))
+    #tfile.close()
     node_data = np.array(training_data_list)
 
     print("Projected_Omegas - ",Projected_Omegas)
@@ -269,6 +272,7 @@ if __name__ == "__main__":
 	node_data = np.log(node_data)
     else:
 	assert(0)
+    #print("Node data - ", node_data)
 
     omega.write(training_node_list,np.ones(len(training_node_list)))
     Tsparse.write(training_node_list,node_data.reshape(len(training_node_list)))
@@ -395,21 +399,28 @@ if __name__ == "__main__":
 	    if (prediction_errors[1][-1] <= 0):
 		prediction_errors[1][-1] = 1e-14
             prediction_errors[2].append(np.abs(model_predictions[k]-validation_data[k])/np.average([model_predictions[k],validation_data[k]]))
-	validation_error_metrics[0] = np.average(prediction_errors[0])
-	validation_error_metrics[1] = np.std(prediction_errors[0],ddof=1)
-	validation_error_metrics[2] = np.average(np.asarray(prediction_errors[0])**2)
-	validation_error_metrics[3] = np.std(np.asarray(prediction_errors[0])**2,ddof=1)
-	validation_error_metrics[4] = scst.gmean(prediction_errors[1])
-	validation_error_metrics[5] = np.exp(np.std(np.log(prediction_errors[1]),ddof=1))
-	validation_error_metrics[6] = np.average(prediction_errors[1])
-	validation_error_metrics[7] = np.std(prediction_errors[1],ddof=1)
-	validation_error_metrics[8] = np.average(prediction_errors[2])
-	validation_error_metrics[9] = np.std(prediction_errors[2],ddof=1)
-        validation_error_metrics[10] = loss
-	print("Validation Error for (rank=%d,#sweeps=%d,element_mode_len=%d,reg=%f) is "%(model_parameters[2],model_parameters[1],model_parameters[3],model_parameters[0]),validation_error_metrics, " with time: ", timers)
-	if (validation_error_metrics[2] < opt_error_metrics[2]):
-            opt_model_parameters = copy.deepcopy(model_parameters)
-            opt_error_metrics = copy.deepcopy(validation_error_metrics)
+        if (len(validation_nodes)>0):
+	    validation_error_metrics[0] = np.average(prediction_errors[0])
+	    validation_error_metrics[1] = np.std(prediction_errors[0],ddof=1)
+	    validation_error_metrics[2] = np.average(np.asarray(prediction_errors[0])**2)
+	    validation_error_metrics[3] = np.std(np.asarray(prediction_errors[0])**2,ddof=1)
+	    validation_error_metrics[4] = scst.gmean(prediction_errors[1])
+	    validation_error_metrics[5] = np.exp(np.std(np.log(prediction_errors[1]),ddof=1))
+	    validation_error_metrics[6] = np.average(prediction_errors[1])
+	    validation_error_metrics[7] = np.std(prediction_errors[1],ddof=1)
+	    validation_error_metrics[8] = np.average(prediction_errors[2])
+	    validation_error_metrics[9] = np.std(prediction_errors[2],ddof=1)
+	    validation_error_metrics[10] = loss
+	    print("Validation Error for (rank=%d,#sweeps=%d,element_mode_len=%d,reg=%f) is "%(model_parameters[2],model_parameters[1],model_parameters[3],model_parameters[0]),validation_error_metrics, " with time: ", timers)
+	    if (validation_error_metrics[2] < opt_error_metrics[2]):
+		opt_model_parameters = copy.deepcopy(model_parameters)
+		opt_error_metrics = copy.deepcopy(validation_error_metrics)
+		current_best_factor_matrices = copy.deepcopy(FM)
+        else:
+	    validation_error_metrics[0:10] = [-1.]*10
+	    validation_error_metrics[10] = loss
+	    opt_model_parameters = copy.deepcopy(model_parameters)
+	    opt_error_metrics = copy.deepcopy(validation_error_metrics)
 	    current_best_factor_matrices = copy.deepcopy(FM)
     Factor_Matrices = current_best_factor_matrices if (len(current_best_factor_matrices)>0) else FM
     timers[2] += (time.time()-start_time)
