@@ -11,6 +11,101 @@ from backend.cpd_opt import cpd_als,cpd_amn
 
 glob_comm = ctf.comm()
 
+def prediction(input_tuple, node, _FM_):
+    midpoints = []
+    local_interp_modes = []
+    local_interp_map = [0]*len(input_tuple)
+    decisions = [0]*len(input_tuple)
+    for j in range(len(interp_modes)):
+	#cell_node_idx = interp_modes[j]
+        # check if input_tuple[interp_modes[j]] is outside of the cell_nodes on either side
+        left_midpoint = get_midpoint(0, cell_nodes[interp_modes[j]], cell_spacing[interp_modes[j]])
+        right_midpoint = get_midpoint(len(cell_nodes[interp_modes[j]])-2, cell_nodes[interp_modes[j]], cell_spacing[interp_modes[j]])
+        if (input_tuple[interp_modes[j]] < cell_nodes[interp_modes[j]][0]):
+            # extrapolation necessary: outside range of bounding box on left
+            decisions[interp_modes[j]]=1
+        elif (input_tuple[interp_modes[j]] > cell_nodes[interp_modes[j]][-1]):
+            # extrapolation necessary: outside range of bounding box on right
+            decisions[interp_modes[j]]=2
+        elif (input_tuple[interp_modes[j]] < left_midpoint):
+            # extrapolation necessary: inside range of bounding box on left, but left of left-most midpoint
+            decisions[interp_modes[j]]=3
+        elif (input_tuple[interp_modes[j]] > right_midpoint):
+            # extrapolation necessary: inside range of bounding box on right, but right of right-most midpoint
+            decisions[interp_modes[j]]=4
+        else:
+	    midpoints.append(get_midpoint(get_cell_index(input_tuple[interp_modes[j]],cell_nodes[interp_modes[j]]), cell_nodes[interp_modes[j]], cell_spacing[interp_modes[j]]))
+            local_interp_modes.append(j)
+            local_interp_map[interp_modes[j]] = 1
+            decisions[interp_modes[j]]=5
+    element_index_modes_list = []
+    for j in range(len(local_interp_modes)):
+	element_index_modes_list.append([])
+	for xx in range(model_parameters[3]):
+	    if (input_tuple[local_interp_modes[j]] <= midpoints[j]):
+		element_index_modes_list[-1].append(node[local_interp_modes[j]]-(model_parameters[3]-1)/2+xx)
+	    else:
+		element_index_modes_list[-1].append(node[local_interp_modes[j]]-model_parameters[3]/2+xx)
+    model_val = 0.
+    # Do not consider extrapolation modes
+    for j in range(model_parameters[3]**len(local_interp_modes)):
+	interp_id = j
+	interp_id_list = [0]*len(local_interp_modes)
+	counter = 0
+	while (interp_id>0):
+	    interp_id_list[counter] = interp_id%model_parameters[3]
+	    interp_id /= model_parameters[3]
+	    counter += 1
+	coeff = 1
+	for l in range(len(local_interp_modes)):
+	    cell_node_idx = local_interp_modes[l]
+	    for ll in range(model_parameters[3]):
+		if (ll != interp_id_list[l]):
+		    coeff *= (input_tuple[local_interp_modes[l]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])\
+			     /(cell_nodes[cell_node_idx][element_index_modes_list[l][interp_id_list[l]]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])
+	factor_row_list = []
+	interp_counter = 0
+	for l in range(len(input_tuple)):
+	    if (local_interp_map[l]==1):
+		factor_row_list.append(_FM_[l][element_index_modes_list[interp_counter][interp_id_list[interp_counter]],:])
+		interp_counter += 1
+	    else:
+		if (decisions[l]==0):	# categorical or non-numerical parameter in which interpolation/extrapolation is not relevant
+                    factor_row_list.append(_FM_[l][node[l],:])
+                elif (decisions[l]==1):
+                    row_data = []
+                    for ll in range(len(_FM_[l][0,:])):
+                        row_data.append(lower_extrap_params[l][ll][0] + lower_extrap_params[l][ll][1]*np.log(input_tuple[l]))
+                    factor_row_list.append(np.array(row_data))
+                elif (decisions[l]==2):
+                    row_data = []
+                    for ll in range(len(_FM_[l][0,:])):
+                        row_data.append(upper_extrap_params[l][ll][0] + upper_extrap_params[l][ll][1]*np.log(input_tuple[l]))
+                    factor_row_list.append(np.array(row_data))
+                elif (decisions[l]==3):
+                    row_data = []
+                    for ll in range(len(FM[l][0,:])):
+                        row_data.append(_FM_[l][0,ll] + (input_tuple[l]-cell_nodes[l][0])/(cell_nodes[l][1]-cell_nodes[l][0])*(_FM_[l][1,ll]-_FM_[l][0,ll]))
+                    factor_row_list.append(np.array(row_data))
+                elif (decisions[l]==4):
+                    row_data = []
+                    for ll in range(len(FM[l][0,:])):
+                        row_data.append(_FM_[l][-2,ll] + (input_tuple[l]-cell_nodes[l][-2])/(cell_nodes[l][-1]-cell_nodes[l][-2])*(_FM_[l][-1,ll]-_FM_[l][-2,ll]))
+                    factor_row_list.append(np.array(row_data))
+	if (numpy_eval == 1):
+	    t_val = np.einsum(contract_str,*factor_row_list)
+	else:
+	    t_val = tenpy.einsum(contract_str,*factor_row_list)
+	if (args.response_transform==0):
+	    pass
+	elif (args.response_transform==1):
+	    t_val = np.exp(1)**t_val
+	    pass
+	else:
+	    assert(0)
+	model_val += coeff * t_val
+    return model_val
+
 def get_midpoint(idx, _nodes, spacing_id):
     # idx is assumed to be the leading coordinate of a cell. Therefore, idx+1 is always valid
     if (spacing_id == 0):
@@ -299,7 +394,7 @@ if __name__ == "__main__":
     start_time = time.time()
     opt_model_parameters = [-1,-1,-1,-1]
     current_best_factor_matrices = []
-    opt_error_metrics = [100000.]*10	# arithmetic sum of log Q, arithmetic sum of log^2 Q, geometric mean of relative errors, MAPE, SMAPE, Loss
+    opt_error_metrics = [np.inf]*10	# arithmetic sum of log Q, arithmetic sum of log^2 Q, geometric mean of relative errors, MAPE, SMAPE, Loss
     # Iterate over all model hyper-parameters (not counting cell-count)
     for model_parameters in model_list:
         model_predictions = []
@@ -325,63 +420,9 @@ if __name__ == "__main__":
 	for k in range(len(validation_nodes)):
 	    input_tuple = validation_inputs[k,:]*1.	# Note: without this cast from into to float, interpolation produces zeros
             node = validation_nodes[k]
-            midpoints = []
-            for j in range(len(interp_modes)):
-                cell_node_idx = interp_modes[j]
-                midpoints.append(get_midpoint(get_cell_index(input_tuple[interp_modes[j]],cell_nodes[cell_node_idx]), cell_nodes[cell_node_idx], cell_spacing[interp_modes[j]]))
-            element_index_modes_list = []
-            for j in range(len(interp_modes)):
-                cell_node_idx = interp_modes[j]
-                element_index_modes_list.append([])
-                for xx in range(model_parameters[3]):
-		    if (input_tuple[interp_modes[j]] <= midpoints[j]):
-			element_index_modes_list[-1].append(node[interp_modes[j]]-(model_parameters[3]-1)/2+xx)
-		    else:
-			element_index_modes_list[-1].append(node[interp_modes[j]]-model_parameters[3]/2+xx)
-		if (element_index_modes_list[-1][0]<0):
-		    offset = element_index_modes_list[-1][0]*(-1)
-		    for xx in range(model_parameters[3]):
-			element_index_modes_list[-1][xx] += offset
-		if (element_index_modes_list[-1][-1]>=len(cell_nodes[cell_node_idx])):
-		    offset = element_index_modes_list[-1][-1]+1-len(cell_nodes[cell_node_idx])
-		    for xx in range(model_parameters[3]):
-			element_index_modes_list[-1][xx] -= offset
-	    model_val = 0.
-            for j in range(model_parameters[3]**len(interp_modes)):
-                interp_id = j
-                interp_id_list = [0]*len(interp_modes)
-                counter = 0
-                while (interp_id>0):
-                    interp_id_list[counter] = interp_id%model_parameters[3]
-                    interp_id /= model_parameters[3]
-                    counter += 1
-                coeff = 1
-                for l in range(len(interp_modes)):
-                    cell_node_idx = interp_modes[l]
-                    for ll in range(model_parameters[3]):
-		        if (ll != interp_id_list[l]):
-                            coeff *= (input_tuple[interp_modes[l]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])\
-                                     /(cell_nodes[cell_node_idx][element_index_modes_list[l][interp_id_list[l]]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])
-		factor_row_list = []
-                interp_counter = 0
-		for l in range(len(input_tuple)):
-                    if (interp_map[l]==1):
-		        factor_row_list.append(FM[l][element_index_modes_list[interp_counter][interp_id_list[interp_counter]],:])
-                        interp_counter += 1
-                    else:
-		        factor_row_list.append(FM[l][node[l],:])
-		if (numpy_eval == 1):
-		    t_val = np.einsum(contract_str,*factor_row_list)
-		else:
-		    t_val = tenpy.einsum(contract_str,*factor_row_list)
-		if (args.response_transform==0):
-		    pass
-		elif (args.response_transform==1):
-		    t_val = np.exp(1)**t_val
-                    pass
-		else:
-		    assert(0)
-		model_val += coeff * t_val
+            # NOTE: We comment out this call below because we have not set up the extrap_params yet, and we do not want to perform extrapolation with a validation set.
+            #       This actually motivates taking the validation set from the training set in future
+            model_val = 1#prediction(input_tuple,node,FM)
             model_predictions.append(model_val)
 
         validation_error_metrics = [0]*11
@@ -426,70 +467,67 @@ if __name__ == "__main__":
     timers[2] += (time.time()-start_time)
     training_error_metrics[0] = opt_error_metrics[-1]
 
+    if (args.print_model_parameters):
+        # Print factor matrices for GEMM
+        for i in range(len(Factor_Matrices)):
+            max_num_entries=0
+            for k in range(len(Factor_Matrices)):
+                max_num_entries = max(max_num_entries,len(Factor_Matrices[k][:,0]))
+            for k in range(max_num_entries):
+                for j in range(len(Factor_Matrices[i][0,:])):# row 0 is fine here, as cp rank won't change
+                    val = 0
+                    if (k<len(Factor_Matrices[i][:,j])):
+                        val = Factor_Matrices[i][k,j]
+                    print("%f,"%(val/Factor_Matrices[i][0,j])),
+                print("")
+
+    upper_extrap_params = []
+    lower_extrap_params = []
+    for i in range(len(interp_modes)):	# Only extrapolate certain modes
+        upper_extrap_params.append([])
+        lower_extrap_params.append([])
+        #NOTE: Could try 3 instead of 2 to try quadratic global models
+        ls_mat = np.ones(shape=(len(Factor_Matrices[interp_modes[i]][:,0]),2))
+        #NOTE: Could log-transform these or simply count as [0,1,2,...,31], but note that this also affects the transformation applied to test input
+        ls_mat[:,1] = np.log(cell_nodes[interp_modes[i]])#np.arange((len(Factor_Matrices[i][:,0])))
+        for j in range(len(Factor_Matrices[interp_modes[i]][0,:])):
+            # For each FM column, we search over which contiguous chunk of points to use (min of 3) for each side.
+            min_lsr = np.inf
+            lsq_params = -3	# just a sentinel
+            chosen_window = 0
+            for k in range(len(Factor_Matrices[interp_modes[i]][:,0])-2):	# This end can be changed. Currently, the last will always be chosen
+                ret1,ret2,ret3,_ = la.lstsq(ls_mat[k:,:],Factor_Matrices[interp_modes[i]][k:,j])
+                ret2 = 0 if len(ret2)==0 else ret2[0]
+                ret2 /= len(Factor_Matrices[interp_modes[i]][k:,j])	# This penalty factor can be changed.
+                if (ret2 < min_lsr):
+                    min_lsr = ret2
+                    lsq_params = ret1
+                    chosen_window = k
+            upper_extrap_params[-1].append(lsq_params)
+            # For each FM column, we search over which contiguous chunk of points to use (min of 3) for each side.
+            min_lsr = np.inf
+            lsq_params = -3	# just a sentinel
+            chosen_window = len(Factor_Matrices[interp_modes[i]][:,0])
+            for k in range(len(Factor_Matrices[interp_modes[i]][:,0])-1,3,-1):	# This end can be changed. Currently, the last will always be chosen
+                ret1,ret2,ret3,_ = la.lstsq(ls_mat[:k,:],Factor_Matrices[interp_modes[i]][:k,j])
+                ret2 = 0 if len(ret2)==0 else ret2[0]
+                ret2 /= len(Factor_Matrices[interp_modes[i]][:k,j])	# This penalty factor can be changed.
+                if (ret2 < min_lsr):
+                    min_lsr = ret2
+                    lsq_params = ret1
+                    chosen_window = k
+            lower_extrap_params[-1].append(lsq_params)
+    #print("LSQ Model parameters: ", upper_extrap_params)
+    #print("LSQ Model parameters: ", lower_extrap_params)
+
     start_time = time.time()
 
     model_predictions = []
     for k in range(len(test_nodes)):
 	input_tuple = test_inputs[k,:]*1.	# Note: without this cast from into to float, interpolation produces zeros
 	node = test_nodes[k]
-	midpoints = []
-	for j in range(len(interp_modes)):
-            cell_node_idx = interp_modes[j]
-	    midpoints.append(get_midpoint(get_cell_index(input_tuple[interp_modes[j]],cell_nodes[cell_node_idx]), cell_nodes[cell_node_idx], cell_spacing[interp_modes[j]]))
-	element_index_modes_list = []
-	for j in range(len(interp_modes)):
-            cell_node_idx = interp_modes[j]
-	    element_index_modes_list.append([])
-	    for xx in range(model_parameters[3]):
-		if (input_tuple[interp_modes[j]] <= midpoints[j]):
-		    element_index_modes_list[-1].append(node[interp_modes[j]]-(model_parameters[3]-1)/2+xx)
-		else:
-		    element_index_modes_list[-1].append(node[interp_modes[j]]-model_parameters[3]/2+xx)
-	    if (element_index_modes_list[-1][0]<0):
-		offset = element_index_modes_list[-1][0]*(-1)
-		for xx in range(model_parameters[3]):
-		    element_index_modes_list[-1][xx] += offset
-	    if (element_index_modes_list[-1][-1]>=len(cell_nodes[cell_node_idx])):
-		offset = element_index_modes_list[-1][-1]+1-len(cell_nodes[cell_node_idx])
-		for xx in range(model_parameters[3]):
-		    element_index_modes_list[-1][xx] -= offset
-	model_val = 0.
-	for j in range(model_parameters[3]**len(interp_modes)):
-	    interp_id = j
-	    interp_id_list = [0]*len(interp_modes)
-	    counter = 0
-	    while (interp_id>0):
-		interp_id_list[counter] = interp_id%model_parameters[3]
-		interp_id /= model_parameters[3]
-		counter += 1
-	    coeff = 1
-	    for l in range(len(interp_modes)):
-                cell_node_idx = interp_modes[l]
-		for ll in range(model_parameters[3]):
-		    if (ll != interp_id_list[l]):
-			coeff *= (input_tuple[interp_modes[l]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])\
-				 /(cell_nodes[cell_node_idx][element_index_modes_list[l][interp_id_list[l]]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])
-	    factor_row_list = []
-            interp_counter = 0
-	    for l in range(len(input_tuple)):
-		if (interp_map[l]==1):
-		    factor_row_list.append(Factor_Matrices[l][element_index_modes_list[interp_counter][interp_id_list[interp_counter]],:])
-                    interp_counter += 1
-		else:
-		    factor_row_list.append(Factor_Matrices[l][node[l],:])
-	    if (numpy_eval == 1):
-		t_val = np.einsum(contract_str,*factor_row_list)
-	    else:
-		t_val = tenpy.einsum(contract_str,*factor_row_list)
-	    if (args.response_transform==0):
-		pass
-	    elif (args.response_transform==1):
-		t_val = np.exp(1)**t_val
-	    else:
-		assert(0)
-	    model_val += coeff * t_val
-
-	model_predictions.append(model_val)
+        model_val = prediction(input_tuple,node,Factor_Matrices)
+        model_predictions.append(model_val)
 
     timers[3] += (time.time()-start_time)
 
