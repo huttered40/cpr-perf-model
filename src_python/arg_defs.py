@@ -174,3 +174,9 @@ def add_general_arguments(parser):
         default='',
         metavar='str',
         help='Comma-delimited list of maximum values for each parameter')
+    parser.add_argument(
+        '--print_model_parameters',
+        type=int,
+        default=0,
+        metavar='int',
+        help='Whether or not to print the factor matrix elements (default: 0)')
