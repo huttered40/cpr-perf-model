@@ -1,18 +1,19 @@
 # !/usr/bin/python
 # coding=utf-8
 
-import time, sys, copy
+import os, joblib, time, sys, copy
 import numpy as np
 import numpy.linalg as la
-import scipy.stats as scst
-import random as rand
-import os
 import pandas as pd
 import argparse
 import arg_defs as arg_defs
+
 import pysgpp as pysgpp
 from pysgpp.extensions.datadriven.learner import Types
 from pysgpp.extensions.datadriven.learner import LearnerBuilder
+
+sys.path.insert(0,'%s/../'%(os.getcwd()))
+from util import extract_datasets, get_error_metrics
 
 def generate_predictions(learner,features):
     # create SGPP DataMatrix with point data; each
@@ -60,18 +61,11 @@ if __name__ == "__main__":
     arg_defs.add_general_arguments(parser)
     args, _ = parser.parse_known_args()
 
-    timers = [0.]*3	# Matrix generation, Solve, Total CV, Total Test Set evaluation
-    np.random.seed(10)
-    print("Location of training data: %s"%(args.training_file))
-    print("Location of test data: %s"%(args.test_file))
-    print("Location of output data: %s"%(args.output_file))
+    timers = [0.]*3
     training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
     test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
-    print("args.input_columns - ", args.input_columns)
-    print("args.data_columns - ", args.data_columns)
     param_list = training_df.columns[[int(n) for n in args.input_columns.split(',')]].tolist()
     data_list = training_df.columns[[int(n) for n in args.data_columns.split(',')]].tolist()
-    print("param_list: ", param_list)
 
     nlevels = [int(n) for n in args.nlevels.split(',')]
     nadapt_points = [int(n) for n in args.nadaptpts.split(',')]
@@ -81,81 +75,21 @@ if __name__ == "__main__":
 
     # Generate list of model types parameterized on hyper-parameters
     model_list = generate_models(nlevels, nadapt_points, reg)
-    print(model_list)
 
+    (training_inputs,training_data,training_set_size,\
+            validation_inputs,validation_data,validation_set_size,\
+            test_inputs,test_data,test_set_size,mode_range_min,mode_range_max)\
+      = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,\
+          args.test_set_size,args.training_set_split_percentage,args.mode_range_min,args.mode_range_max)
 
-    # Note: assumption that training/test input files follow same format
-    x_test = np.array(range(len(test_df[param_list].values)))
-    np.random.shuffle(x_test)
-    x_train = np.array(range(len(training_df[param_list].values)))
-    np.random.shuffle(x_train)
-
-    test_inputs = test_df[param_list].values[x_test]
-    test_data = test_df[data_list].values.reshape(-1)[x_test]
-    test_set_size = min(args.test_set_size,test_inputs.shape[0])
-    split_idx = int(args.test_set_split_percentage * test_set_size)
-    validation_set_size = split_idx
-    test_set_size = test_inputs.shape[0]-split_idx
-
-    training_inputs = training_df[param_list].values[x_train]
-    training_data = training_df[data_list].values.reshape(-1)[x_train]
-    training_set_size = min(training_inputs.shape[0],args.training_set_size)
-    training_inputs = training_inputs[:training_set_size,:]
-    training_data = training_data[:training_set_size]
-
-    print("training_inputs - ", training_inputs)
-    print("training_data - ", training_data)
-    print("test_inputs - ", test_inputs)
-    print("test_data - ", test_data)
-
-    test_inputs = test_inputs.astype(np.float64)
-    training_inputs = training_inputs.astype(np.float64)
-    mode_range_min = [0]*len(param_list)
-    mode_range_max = [0]*len(param_list)
-    if (args.mode_range_min == '' or args.mode_range_max == ''):
-        for i in range(training_inputs.shape[1]):
-            mode_range_min[i] = np.amin(training_inputs[:,i])
-            mode_range_max[i] = np.amax(training_inputs[:,i])
-    else:
-        mode_range_min = [float(n) for n in args.mode_range_min.split(',')]
-        mode_range_max = [float(n) for n in args.mode_range_max.split(',')]
-    print("str mode_range_min - ", args.mode_range_min)
-    print("str mode_range_max - ", args.mode_range_max)
-    print("mode_range_min - ", mode_range_min)
-    print("mode_range_max - ", mode_range_max)
-    assert(len(mode_range_min)==len(param_list))
-    assert(len(mode_range_max)==len(param_list))
-
-    if (args.kernel_name == "kripke"):
-        for i in range(len(training_data)):
-            input_tuple = training_inputs[i,:]
-            for j in range(len(input_tuple)):
-                if (param_list[j]=="layout"):
-                    input_tuple[j] = layout_dict[input_tuple[j]]
-            training_inputs[i,:] = input_tuple
-        for i in range(len(test_data)):
-            input_tuple = test_inputs[i,:]
-            for j in range(len(input_tuple)):
-                if (param_list[j]=="layout"):
-                    input_tuple[j] = layout_dict[input_tuple[j]]
-            test_inputs[i,:] = input_tuple
-    if (args.kernel_name == "exafmm"):
-        for i in range(len(training_data)):
-            input_tuple = training_inputs[i,:]
-            for j in range(len(input_tuple)):
-                if (param_list[j]=="level"):
-                    input_tuple[j] = input_tuple[j] + 1 # Add 1 so that log(..) can be used
-                elif (param_list[j]=="order"):
-                    input_tuple[j] = input_tuple[j] + 1 # Add 1 so that log(..) can be used
-            training_inputs[i,:] = input_tuple
-        for i in range(len(test_data)):
-            input_tuple = test_inputs[i,:]
-            for j in range(len(input_tuple)):
-                if (param_list[j]=="level"):
-                    input_tuple[j] = input_tuple[j] + 1 # Add 1 so that log(..) can be used
-                elif (param_list[j]=="order"):
-                    input_tuple[j] = input_tuple[j] + 1 # Add 1 so that log(..) can be used
-            test_inputs[i,:] = input_tuple
+    if (args.print_diagnostics == 1):
+        print("Location of training data: %s"%(args.training_file))
+        print("Location of test data: %s"%(args.test_file))
+        print("Location of output data: %s"%(args.output_file))
+        print("args.input_columns - ", args.input_columns)
+        print("args.data_columns - ", args.data_columns)
+        print("param_list: ", param_list)
+        print(model_list)
 
     # we check the refined grids for the number of total grid points. If the number of grid points
     # exceeds 0.2*training_set_size (i.e., we use more grid points than 20% of the number of samples),
@@ -182,7 +116,6 @@ if __name__ == "__main__":
         _training_data_ = training_data.copy()
         if (args.response_transform == 1):
             _training_data_ = np.log(_training_data_)
-        #print("what is this range - ", np.amax(_training_data_) / np.amin(_training_data_))
         builder.withTrainingDataFromNumPyArray(training_inputs, _training_data_)
         builder = builder.withGrid().withBorder(Types.BorderTypes.NONE)
         builder.withLevel(model_parameters[0])
@@ -198,10 +131,10 @@ if __name__ == "__main__":
         builder = builder.withCGSolver()
         builder.withAccuracy(0.0001)
         builder.withImax(100)    # this impacts accuracy and number of grid-points!
-        _test_data_ = test_data[:split_idx].copy()
+        _test_data_ = test_data.copy()
         if (args.response_transform == 1):
             _test_data_ = np.log(_test_data_)
-        builder.withTestingDataFromNumPyArray(test_inputs[:split_idx,:], _test_data_)
+        builder.withTestingDataFromNumPyArray(test_inputs, _test_data_)
 
         start_time_solve = time.time()
         # Extract the corresponding learner and learn, using the test data to prevent overfitting
@@ -222,19 +155,19 @@ if __name__ == "__main__":
             timers[0] += (time.time()-start_time_solve)
             counter_refinements=counter_refinements+1
         numberGridPoints=learner.grid.getSize()
-        #print("what are these sizes - ", numberGridPoints,sys.getsizeof(learner),sys.getsizeof(learner.grid))
         gridStorage = learner.grid.getStorage()
-        #print("What is this - ", gridStorage.getDimension(), gridStorage.getSize(), gridStorage.getMaxLevel(), gridStorage.getNumberOfInnerPoints())
-        #print("What is this size - ", sys.getsizeof(gridStorage))
-        #print(gridStorage)
-        #print(gridStorage.toString())
         """
+        print("what are these sizes - ", numberGridPoints,sys.getsizeof(learner),sys.getsizeof(learner.grid))
+        print("What is this - ", gridStorage.getDimension(), gridStorage.getSize(), gridStorage.getMaxLevel(), gridStorage.getNumberOfInnerPoints())
+        print("What is this size - ", sys.getsizeof(gridStorage))
+        print(gridStorage)
+        print(gridStorage.toString())
         for ii in range(gridStorage.getSize()):
             print("check - ", *gridStorage.getPoint(ii))
         """
 
         # Use validation set again here.
-        results = generate_predictions(learner,test_inputs[:split_idx,:])
+        results = generate_predictions(learner,test_inputs)
         # Now validate on validation set
         model_predictions = []
         for k in range(validation_set_size):
@@ -243,30 +176,11 @@ if __name__ == "__main__":
                 _data_ = np.exp(_data_)
             model_predictions.append(_data_)
 
-        validation_error_metrics = [0]*10
-        prediction_errors = [[] for k in range(3)]
-        for k in range(validation_set_size):
-            prediction_errors[0].append(np.log((model_predictions[k] if model_predictions[k] > 0 else 1e-14)/test_data[k]))
-            prediction_errors[1].append(np.abs(model_predictions[k]-test_data[k])/test_data[k])
-            if (prediction_errors[1][-1] <= 0):
-                prediction_errors[1][-1] = 1e-14
-            prediction_errors[2].append(np.abs(model_predictions[k]-test_data[k])/np.average([model_predictions[k],test_data[k]]))
-        if (validation_set_size>0):
-            validation_error_metrics[0] = np.average(prediction_errors[0])
-            validation_error_metrics[1] = np.std(prediction_errors[0],ddof=1)
-            validation_error_metrics[2] = np.average(np.asarray(prediction_errors[0])**2)
-            validation_error_metrics[3] = np.std(np.asarray(prediction_errors[0])**2,ddof=1)
-            validation_error_metrics[4] = scst.gmean(prediction_errors[1])
-            validation_error_metrics[5] = np.exp(np.std(np.log(prediction_errors[1]),ddof=1))
-            validation_error_metrics[6] = np.average(prediction_errors[1])
-            validation_error_metrics[7] = np.std(prediction_errors[1],ddof=1)
-            validation_error_metrics[8] = np.average(prediction_errors[2])
-            validation_error_metrics[9] = np.std(prediction_errors[2],ddof=1)
-            print("Validation Error for (nlevels=%d,nadaptpts=%d,reg=%f,nrefinements=%d) is "%(model_parameters[0],model_parameters[1],model_parameters[2], counter_refinements),validation_error_metrics, "with runtime ", timers)
-            if (validation_error_metrics[2] < opt_error_metrics[1]):
-                opt_model_parameters = copy.deepcopy(model_parameters)
-                opt_error_metrics = copy.deepcopy(validation_error_metrics)
-                current_best_model = learner
+        validation_error_metrics = get_error_metrics(validation_set_size,validation_inputs,validation_data,model_predictions)
+        if (validation_error_metrics[2] < opt_error_metrics[1]):
+            opt_model_parameters = copy.deepcopy(model_parameters)
+            opt_error_metrics = copy.deepcopy(validation_error_metrics)
+            current_best_model = learner
     if (validation_set_size>0):
         Learner = current_best_model
     else:
@@ -274,10 +188,16 @@ if __name__ == "__main__":
         opt_model_parameters = model_parameters
     timers[1] += (time.time()-start_time)
 
+    """ learner object apparently cannot be dumped. Must ascertain size a different way.
+    joblib.dump(learner.grid, "SGR_Model.joblib") 
+    model_size = os.path.getsize('SGR_Model.joblib')
+    print("SGR model size: %f bytes"%(model_size))
+    """
+
     start_time = time.time()
     model_predictions = []
     numberGridPoints=Learner.grid.getSize()
-    results = generate_predictions(Learner,test_inputs[split_idx:,:])
+    results = generate_predictions(Learner,test_inputs)
     for k in range(test_set_size):
         _data_ = results[k]
         if (args.response_transform == 1):
@@ -285,32 +205,9 @@ if __name__ == "__main__":
         model_predictions.append(_data_)
     timers[2] += (time.time()-start_time)
 
-    test_error_metrics = [0]*12
-    prediction_errors = [[] for k in range(3)]
-    for k in range(test_set_size):
-        prediction_errors[0].append(np.log((model_predictions[k] if model_predictions[k] > 0 else 1e-14)/test_data[split_idx+k]))
-        prediction_errors[1].append(np.abs(model_predictions[k]-test_data[split_idx+k])/test_data[split_idx+k])
-        if (prediction_errors[1][-1] <= 0):
-            prediction_errors[1][-1] = 1e-14
-        prediction_errors[2].append(np.abs(model_predictions[k]-test_data[split_idx+k])/np.average([model_predictions[k],test_data[split_idx+k]]))
-    test_error_metrics[0] = np.average(prediction_errors[0])
-    test_error_metrics[1] = np.std(prediction_errors[0],ddof=1)
-    test_error_metrics[2] = np.average(np.absolute(np.asarray(prediction_errors[0])))
-    test_error_metrics[3] = np.std(np.absolute(np.asarray(prediction_errors[0])),ddof=1)
-    test_error_metrics[4] = np.average(np.asarray(prediction_errors[0])**2)
-    test_error_metrics[5] = np.std(np.asarray(prediction_errors[0])**2,ddof=1)
-    test_error_metrics[6] = scst.gmean(prediction_errors[1])
-    test_error_metrics[7] = np.exp(np.std(np.log(prediction_errors[1]),ddof=1))
-    test_error_metrics[8] = np.average(prediction_errors[1])
-    test_error_metrics[9] = np.std(prediction_errors[1],ddof=1)
-    test_error_metrics[10] = np.average(prediction_errors[2])
-    test_error_metrics[11] = np.std(prediction_errors[2],ddof=1)
+    test_error_metrics = get_error_metrics(test_set_size,test_inputs,test_data,model_predictions)
 
-    """
-    for k in range(test_set_size):
-        print(np.absolute(prediction_errors[0][k]))
-    """
-
+    # Write relevant error statistics to file
     columns = (\
         "input:training_set_size",\
         "input:test_set_size",\
@@ -320,12 +217,12 @@ if __name__ == "__main__":
         "reg",\
         "nrefinements",\
         "NumberGridPoints",\
-        "Model_size",\
-    "error:mlogq",\
-    "error:mlogq2",\
-    "error:gmre",\
-    "error:mape",\
-    "error:smape",\
+        "analytic_model_size",\
+        "error:mlogq",\
+        "error:mlogq2",\
+        "error:gmre",\
+        "error:mape",\
+        "error:smape",\
         "time:model_configuration",\
         "time:model_configuration+validation",\
         "time:prediction",\
@@ -337,14 +234,14 @@ if __name__ == "__main__":
         columns[3] : opt_model_parameters[0],\
         columns[4] : opt_model_parameters[1],\
         columns[5] : opt_model_parameters[2],\
-        columns[6] : numberGridPoints,\
-        columns[7] : numberGridPoints*(training_inputs.shape[1]*4+8),\
-        columns[8] : args.nrefinements,\
-    columns[9] : test_error_metrics[2],\
-    columns[10] : test_error_metrics[4],\
-    columns[11] : test_error_metrics[6],\
-    columns[12] : test_error_metrics[8],\
-    columns[13] : test_error_metrics[10],\
+        columns[6] : args.nrefinements,\
+        columns[7] : numberGridPoints,\
+        columns[8] : numberGridPoints*(training_inputs.shape[1]*4+8),\
+        columns[9] : test_error_metrics[2],\
+        columns[10] : test_error_metrics[4],\
+        columns[11] : test_error_metrics[6],\
+        columns[12] : test_error_metrics[8],\
+        columns[13] : test_error_metrics[10],\
         columns[14] : timers[0],\
         columns[15] : timers[1],\
         columns[16] : timers[2],\

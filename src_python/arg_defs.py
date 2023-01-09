@@ -43,11 +43,11 @@ def add_general_arguments(parser):
         metavar='str',
         help='ID for placement of grid-points constrained to a particular discretization granularity as specified by grid_type. Equivalently, ID for sampling distribution (default: 0)')
     parser.add_argument(
-        '--test_set_split_percentage',
+        '--training_set_split_percentage',
         type=float,
-        default='.1',
+        default='0',
         metavar='float',
-        help='Percentage of the test set used for model validation across hyper-parameter space (default: 0.1)')
+        help='Percentage of the training set used for model selection across hyper-parameter space (default: 0)')
     parser.add_argument(
         '--response_transform',
         type=int,
@@ -55,39 +55,45 @@ def add_general_arguments(parser):
         metavar='int',
         help='Transformation to apply to runtime data (default: 1 (Log transformation))')
     parser.add_argument(
-        '--error_metric',
-        type=str,
-        default='MSE',
-        metavar='str',
-        help='Error metric characterizing loss function (default: MSE)')
+        '--max_spline_degree',
+        type=int,
+        default="1",
+        metavar='int',
+        help='Maximum spline degree for extrapolation model (default: 1)')
+    parser.add_argument(
+        '--build_extrapolation_model',
+        type=int,
+        default="1",
+        metavar='int',
+        help='Signifies whether to build a separate model for extrapolation (default: 1)')
     parser.add_argument(
         '--reg',
         type=str,
-        default='1e-6',
+        default='1e-5',
         metavar='str',
         help='regularization parameter (default: 1e-6)')
     parser.add_argument(
-        '--tol_als',
+        '--max_num_sweeps',
+        type=int,
+        default='20',
+        metavar='str',
+        help='Maximum number of sweeps of ALS or AMN (default: 20)')
+    parser.add_argument(
+        '--sweep_tol',
         type=float,
         default='1e-3',
         metavar='float',
-        help='Tolerance for ALS (default: 1e-3)')
-    parser.add_argument(
-        '--nals_sweeps',
-        type=str,
-        default='20',
-        metavar='str',
-        help='Maximum number of sweeps of ALS (default: 20)')
+        help='Tolerance for ALS or AMN (default: 1e-3)')
     parser.add_argument(
         '--barrier_start',
         type=float,
-        default='1000',
+        default='100',
         metavar='float',
         help='Coefficient on barrier terms for initial ALS sweep (default: 1000)')
     parser.add_argument(
         '--barrier_reduction_factor',
         type=float,
-        default='10',
+        default='1.25',
         metavar='float',
         help='Divisor for coefficient on barrier terms for subsequent ALS sweeps (default: 10)')
     parser.add_argument(
@@ -97,23 +103,17 @@ def add_general_arguments(parser):
         metavar='float',
         help='Tolerance for Newtons method (default: 1e-3)')
     parser.add_argument(
-        '--max_iter_newton',
+        '--max_num_newton_iter',
         type=int,
-        default='20',
+        default='40',
         metavar='float',
         help='Max number of iterations of Newtons method (default: 20)')
     parser.add_argument(
         '--cp_rank',
         type=str,
-        default="1,2,3",
+        default="3",
         metavar='str',
         help='Comma-delimited list of CP ranks (default: 1,2,3)')
-    parser.add_argument(
-        '--element_mode_len',
-        type=str,
-        default='2',
-        metavar='str',
-        help='Comma-delimited tuple representing the number of grid-points along each tensor mode to use for interpolation (default: 2)')
     parser.add_argument(
         '--numpy_eval',
         type=int,
@@ -180,3 +180,9 @@ def add_general_arguments(parser):
         default=0,
         metavar='int',
         help='Whether or not to print the factor matrix elements (default: 0)')
+    parser.add_argument(
+        '--print_diagnostics',
+        type=int,
+        default=0,
+        metavar='int',
+        help='Whether or not to print default and input information (default: 0)')

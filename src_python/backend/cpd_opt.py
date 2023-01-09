@@ -100,333 +100,6 @@ class MLogQ2():
         self.tol = tol
         self.max_newton_iterations = num_newton_iterations
 
-    def special_routine(self,niter,regu,barrier_coeff,barrier_reduction_factor):
-        # First just get T
-        Tdense = self.T.to_nparray()
-        Odense = self.Omega.to_nparray()
-	lst_mat = []
-	for j in range(len(self.A)):
-	    lst_mat.append(self.A[j].to_nparray())
-
-        n_newton_iterations = 0
-        n_newton_restarts = 0
-        # Iterate over each factor matrix
-        for i in range(len(lst_mat)):
-            if (i==0): 
-                factors = [1,2]
-            elif (i==1): 
-                factors = [0,2]
-            elif (i==2): 
-                factors = [0,1]
-            # Iterate over each row of factor matrix i
-            for j in range(lst_mat[i].shape[0]):
-                # Newton method to update row j of factor matrix i
-                #print("Initial Factor %d, Row %d: FM - "%(i,j), lst_mat[i][j,:])
-                # Specify the derivative
-                mu = barrier_coeff
-                """
-                if (i==0):
-                    f = lambda x: (-2/x)*((Tdense[j,0,0]-np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][0,0]))+\
-                                      (Tdense[j,0,1]-np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][1,0]))+\
-                                      (Tdense[j,1,0]-np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][0,0]))+\
-                                      (Tdense[j,1,1]-np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][1,0])))+\
-                                      2*regu*x - mu/x
-                    # Specify the Hessian
-                    Df = lambda x: (-2/(x**2))*((-1-Tdense[j,0,0]+np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][0,0]))+\
-                                      (-1-Tdense[j,0,1]+np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][1,0]))+\
-                                      (-1-Tdense[j,1,0]+np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][0,0]))+\
-                                      (-1-Tdense[j,1,1]+np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][1,0])))+\
-                                      2*regu + mu/x**2
-                elif (i==1):
-                    f = lambda x: (-2/x)*((Tdense[0,j,0]-np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][0,0]))+\
-                                      (Tdense[0,j,1]-np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][1,0]))+\
-                                      (Tdense[1,j,0]-np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][0,0]))+\
-                                      (Tdense[1,j,1]-np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][1,0])))+\
-                                      2*regu*x - mu/x
-                    # Specify the Hessian
-                    Df = lambda x: (-2/(x**2))*((-1-Tdense[0,j,0]+np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][0,0]))+\
-                                      (-1-Tdense[0,0,1]+np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][1,0]))+\
-                                      (-1-Tdense[1,j,0]+np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][0,0]))+\
-                                      (-1-Tdense[1,j,1]+np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][1,0])))+\
-                                      2*regu + mu/x**2
-                elif (i==2):
-                    f = lambda x: (-2/x)*((Tdense[0,0,j]-np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][0,0]))+\
-                                      (Tdense[0,1,j]-np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][1,0]))+\
-                                      (Tdense[1,0,j]-np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][0,0]))+\
-                                      (Tdense[1,1,j]-np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][1,0])))+\
-                                      2*regu*x - mu/x
-                    # Specify the Hessian
-                    Df = lambda x: (-2/(x**2))*((-1-Tdense[0,0,j]+np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][0,0]))+\
-                                      (-1-Tdense[0,1,j]+np.log(x*lst_mat[factors[0]][0,0] * lst_mat[factors[1]][1,0]))+\
-                                      (-1-Tdense[1,0,j]+np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][0,0]))+\
-                                      (-1-Tdense[1,1,j]+np.log(x*lst_mat[factors[0]][1,0] * lst_mat[factors[1]][1,0])))+\
-                                      2*regu + mu/x**2
-                lst_mat[i][j,:] = newton(f,Df,lst_mat[i][j,:],1e-6,20)
-                #"""
-                bad_count=0
-                k=0
-                while (k<50):
-                    n_newton_iterations += 1
-		    # Form Hessian H
-		    H = np.zeros(shape=(lst_mat[i].shape[1],lst_mat[i].shape[1]))
-                    H_ref = 0
-		    # Form gradient f
-		    f = 2*regu*lst_mat[i][j,:]
-		    f_ref = 0
-		    for k1 in range(lst_mat[factors[0]].shape[0]):
-			for k2 in range(lst_mat[factors[1]].shape[0]):
-			    temp = lst_mat[factors[0]][k1,:] * lst_mat[factors[1]][k2,:]
-			    m = 0
-			    for r in range(lst_mat[i].shape[1]):
-				m += lst_mat[factors[0]][k1,r] * lst_mat[factors[1]][k2,r] * lst_mat[i][j,r]
-                            t_val = 0
-                            if (i==0): 
-                                t_val = Tdense[j,k1,k2]
-                                if (Odense[j,k1,k2]==0):
-                                    continue
-                            elif (i==1): 
-                                t_val = Tdense[k1,j,k2]
-                                if (Odense[k1,j,k2]==0):
-                                    continue
-                            elif (i==2): 
-                                t_val = Tdense[k1,k2,j]
-                                if (Odense[k1,k2,j]==0):
-                                    continue
-                            #print("t=%g\t\tm=%g\t\t(t_val-np.log(m))/m=%g\t\ttemp*(-2)*(t_val-np.log(m))/m=%g"%(t_val,m,(t_val-np.log(m))/m,temp*(-2)*(t_val-np.log(m))/m))
-			    f += temp*(-2)*(t_val-np.log(m))/m
-			    f_ref += (t_val-np.log(lst_mat[factors[0]][k1,0] * lst_mat[factors[1]][k2,0] * lst_mat[i][j,0]))
-			    for r in range(lst_mat[i].shape[1]):
-                                temp1 = lst_mat[factors[0]][k1,:] * lst_mat[factors[1]][k2,:]
-                                temp1 *= (1+t_val-np.log(m))*lst_mat[factors[0]][k1,r] * lst_mat[factors[1]][k2,r]
-                                temp1 *= (2./m**2)
-                                H[:,r] += temp1
-                            H_ref += (-1-t_val+np.log(lst_mat[factors[0]][k1,0] * lst_mat[factors[1]][k2,0] * lst_mat[i][j,0]))
-		    for r in range(lst_mat[i].shape[1]):
-			H[r,r] += 2*regu
-                    f_ref /= lst_mat[i][j,0]
-                    f_ref -= regu*lst_mat[i][j,0]
-                    f_ref *= (-2)
-                    # Below: log-barrier term
-                    f_ref += ((-1.*mu)/lst_mat[i][j,0])
-                    H_ref *= (-2./lst_mat[i][j,0]**2)
-                    H_ref += 2*regu
-                    # Below: log-barrier term
-                    H_ref += (mu / (lst_mat[i][j,0]**2))
-
-                    # Below: log-barrier term
-                    f += ((-1.*mu)/lst_mat[i][j,:])
-                    for r in range(lst_mat[i].shape[1]):
-                        #barrier_update = mu*np.ones(lst_mat[i].shape[1]) / (lst_mat[i][j,:]**2)
-                        barrier_update = np.zeros(lst_mat[i].shape[1])
-                        barrier_update[r] = mu/(lst_mat[i][j,r]**2)
-                        H[:,r] += barrier_update
-		    # Solve system of linear equations
-                    print("H - ", H)
-                    #print("H_ref - ", H_ref)
-                    print("f - ", f)
-                    #print("f_ref - ", f_ref)
-                    if (lst_mat[i].shape[1] == 1):
-                        delta = 1./H[0,0] * f[0]
-		        lst_mat[i][j,:] = lst_mat[i][j,:] - delta
-                    else:
-                        try:
-		            delta = la.solve(H,f.reshape(f.shape[0],1))
-			    # your code that will (maybe) throw
-			except np.linalg.LinAlgError as e:
-			    if 'Singular matrix' in str(e):
-                                print("Singular matrix")
-                                n_newton_restarts += 1
-				# your error handling block
-				k=0
-				lst_mat[i][j,:] = 2**((-1)*bad_count)*np.ones(lst_mat[i][j,:].shape)
-				for r in range(lst_mat[i].shape[1]):
-				    lst_mat[i][j,r] /= 2**r
-				bad_count += 1
-				if (bad_count>20):
-				    print("Out of retrys")
-                                    return (n_newton_iterations,n_newton_restarts)
-				mu = barrier_coeff
-                                continue
-			    else:
-                                return (n_newton_iterations,n_newton_restarts)
-				raise
-		        lst_mat[i][j,:] = lst_mat[i][j,:] - delta[:,0]
-		    # Update
-                    #print("Factor %d, Row %d, Newton iteration %d: delta - "%(i,j,k), delta)
-                    #print("Factor %d, Row %d, Newton iteration %d: FM - "%(i,j,k), lst_mat[i][j,:])
-                    if (la.norm(delta)<1e-5):
-                        #print("Converged!")
-                        break
-                    if (np.any(lst_mat[i][j,:]<0) or la.norm(delta)>10.):
-                        n_newton_restarts += 1
-                        #print("BAD INITIAL GUESS")
-                        k=0
-                        lst_mat[i][j,:] = 2**((-1)*bad_count)*np.ones(lst_mat[i][j,:].shape)
-                        for r in range(lst_mat[i].shape[1]):
-                            lst_mat[i][j,r] /= 2**r
-                        bad_count += 1
-                        if (bad_count>20):
-                            print("Out of retrys")
-                            return (n_newton_iterations,n_newton_restarts)
-                        mu = barrier_coeff
-                    else:
-                        k += 1
-                        mu /= barrier_reduction_factor
-                #"""
-	for j in range(len(self.A)):
-	    self.A[j].from_nparray(lst_mat[j])
-    
-        return (n_newton_iterations,n_newton_restarts)
-
-    def special_routine_opt(self,niter,regu,barrier_coeff,barrier_reduction_factor):
-        # First just get T
-        Tdense_inds,Tdense_nnz = self.T.read_local_nnz()
-        Odense_inds,Odense_nnz = self.Omega.read_local_nnz()
-	lst_mat = []
-	for j in range(len(self.A)):
-	    lst_mat.append(self.A[j].to_nparray())
-
-        print(self.A)
-
-        n_newton_iterations = 0
-        n_newton_restarts = 0
-	mu = barrier_coeff
-        # Iterate over each factor matrix
-        for i in range(len(lst_mat)):
-            if (i==0): 
-                factors = [1,2]
-            elif (i==1): 
-                factors = [0,2]
-            elif (i==2): 
-                factors = [0,1]
-
-            # Outer loop over Newton's method
-            bad_count_list=[0]*lst_mat[i].shape[0]
-            barrier_list=[mu]*lst_mat[i].shape[0]
-	    k=0
-            converge_info=[False]*lst_mat[i].shape[0]
-            converge_count=0
-	    while (k<100):
-                # Note: below is a different notion of #Newton iterations than method above
-		n_newton_iterations += 1
-                # Reset the Hessians and gradients
-		Hessian_list = []
-		gradient_list = []
-		# Iterate over each row of factor matrix i
-		for j in range(lst_mat[i].shape[0]):
-		    Hessian_list.append(np.zeros(shape=(lst_mat[i].shape[1],lst_mat[i].shape[1])))
-		    gradient_list.append(2*regu*lst_mat[i][j,:])
-		# Iterate over all nnz to set up the Hessian,gradient lists
-		for j in range(len(Odense_inds)):
-		    # TODO: Note: this indexing might be wrong.
-                    """
-		    k0 = Tdense_inds[j]%lst_mat[0].shape[0]
-		    k1 = (Tdense_inds[j]/lst_mat[0].shape[0])%lst_mat[1].shape[0]
-		    k2 = Tdense_inds[j]/(lst_mat[0].shape[0]*lst_mat[1].shape[0])
-                    """
-		    k2 = Tdense_inds[j]%lst_mat[2].shape[0]
-		    k1 = (Tdense_inds[j]/lst_mat[2].shape[0])%lst_mat[1].shape[0]
-		    k0 = Tdense_inds[j]/(lst_mat[2].shape[0]*lst_mat[1].shape[0])
-		    #print(k0,k1,k2)
-		    list_indices = [k0,k1,k2]
-                    if (i==0): 
-		        temp = lst_mat[factors[0]][k1,:] * lst_mat[factors[1]][k2,:]
-                    elif (i==1): 
-		        temp = lst_mat[factors[0]][k0,:] * lst_mat[factors[1]][k2,:]
-                    elif (i==2): 
-		        temp = lst_mat[factors[0]][k0,:] * lst_mat[factors[1]][k1,:]
-		    m = 0
-		    for r in range(lst_mat[i].shape[1]):
-			if (i==0): 
-			    m += lst_mat[factors[0]][k1,r] * lst_mat[factors[1]][k2,r] * lst_mat[i][k0,r]
-			elif (i==1): 
-			    m += lst_mat[factors[0]][k0,r] * lst_mat[factors[1]][k2,r] * lst_mat[i][k1,r]
-			elif (i==2): 
-			    m += lst_mat[factors[0]][k0,r] * lst_mat[factors[1]][k1,r] * lst_mat[i][k2,r]
-		    t_val = Tdense_nnz[j]
-                    #print("check  it - ", m,np.log(m),t_val,t_val-np.log(m))
-		    gradient_list[list_indices[i]] += temp*(-2)*(t_val-np.log(m))/m
-		    for r in range(lst_mat[i].shape[1]):
-			if (i==0):
-			    temp1 = lst_mat[factors[0]][k1,:] * lst_mat[factors[1]][k2,:]
-			    temp1 *= (1+t_val-np.log(m))*lst_mat[factors[0]][k1,r] * lst_mat[factors[1]][k2,r]
-			    temp1 *= (2./m**2)
-                            #print((2./m**2)*(1+t_val-np.log(m)))
-                            #print((1+t_val-np.log(m))*(2./m**2))
-			elif (i==1):
-			    temp1 = lst_mat[factors[0]][k0,:] * lst_mat[factors[1]][k2,:]
-			    temp1 *= (1+t_val-np.log(m))*lst_mat[factors[0]][k0,r] * lst_mat[factors[1]][k2,r]
-			    temp1 *= (2./m**2)
-			elif (i==2):
-			    temp1 = lst_mat[factors[0]][k0,:] * lst_mat[factors[1]][k1,:]
-			    temp1 *= (1+t_val-np.log(m))*lst_mat[factors[0]][k0,r] * lst_mat[factors[1]][k1,r]
-			    temp1 *= (2./m**2)
-			Hessian_list[list_indices[i]][:,r] += temp1
-		    for r in range(lst_mat[i].shape[1]):
-			Hessian_list[list_indices[i]][r,r] += 2*regu
-		    # Below: log-barrier term
-		    gradient_list[list_indices[i]] += ((-1.*barrier_list[list_indices[i]])/lst_mat[i][list_indices[i],:])
-		    for r in range(lst_mat[i].shape[1]):
-			#barrier_update = mu*np.ones(lst_mat[i].shape[1]) / (lst_mat[i][list_indices[i],:]**2)
-			barrier_update = np.zeros(lst_mat[i].shape[1])
-			barrier_update[r] = barrier_list[list_indices[i]]/(lst_mat[i][list_indices[i],r]**2)
-			Hessian_list[list_indices[i]][:,r] += barrier_update
-                print("gradient list - ", gradient_list)
-                print("Hessian_list - ", Hessian_list)
-
-                # Iterate over each row of factor matrix i
-                for j in range(lst_mat[i].shape[0]):
-                    if (converge_info[j]==True):
-                        continue
-		    # Solve system of linear equations
-		    if (lst_mat[i].shape[1] == 1):
-                        #print(i,j,k,gradient_list[j][0],Hessian_list[j][0,0])
-			delta = 1./Hessian_list[j][0,0] * gradient_list[j][0]
-			lst_mat[i][j,:] = lst_mat[i][j,:] - delta
-		    else:
-			try:
-			    delta = la.solve(Hessian_list[j],gradient_list[j].reshape(gradient_list[j].shape[0],1))
-			    # your code that will (maybe) throw
-			except np.linalg.LinAlgError as e:
-			    if 'Singular matrix' in str(e):
-                                #all_valid = False
-		                lst_mat[i][j,:] = 2**((-1)*bad_count_list[j])*np.ones(lst_mat[i][j,:].shape)
-				for r in range(lst_mat[i].shape[1]):
-				    lst_mat[i][j,r] /= 2**r
-                                bad_count_list[j] += 1
-                                barrier_list[j] = mu
-                                continue
-			    else:
-				raise
-			lst_mat[i][j,:] = lst_mat[i][j,:] - delta[:,0]
-		    # Update
-		    #print("Factor %d, Row %d, Newton iteration %d: delta - "%(i,j,k), delta)
-		    #print("Factor %d, Row %d, Newton iteration %d: FM - "%(i,j,k), lst_mat[i][j,:])
-                    print("delta - ", delta)
-		    if (la.norm(delta)<1e-5):
-			converge_info[j]=True
-                        converge_count += 1
-		    if (np.any(lst_mat[i][j,:]<0) or la.norm(delta)>10.):
-                        #all_valid = False
-		        lst_mat[i][j,:] = 2**((-1)*bad_count_list[j])*np.ones(lst_mat[i][j,:].shape)
-			for r in range(lst_mat[i].shape[1]):
-			    lst_mat[i][j,r] /= 2**r
-                        bad_count_list[j] += 1
-                        barrier_list[j] = mu
-                        continue
-                    else:
-                        barrier_list[j] /= barrier_reduction_factor
-
-                if (converge_count == lst_mat[i].shape[0]):
-                    break
-                k += 1
-            #print("How many converged for factor matrix %d - %d"%(i,converge_count))
-
-	for j in range(len(self.A)):
-	    self.A[j].from_nparray(lst_mat[j])
-    
-        return (n_newton_iterations,n_newton_restarts)
-
     def Get_RHS(self,num,regu,mu):
         M = self.tenpy.TTTP(self.Omega,self.A)
         Constant = M.copy()
@@ -497,6 +170,9 @@ class MLogQ2():
                 temp_update = self.A[i] - delta
 
                 [inds,data] = temp_update.read_local()
+                data[data<=0]=1e-6	# hacky reset
+                self.A[i].write(inds,data)
+                """
                 while (np.any(data<=0)):
 		    print("barrier val - ", mu)
                     print("newton iter - ", t)
@@ -512,9 +188,10 @@ class MLogQ2():
                     #self.A[i].write(inds,data)
                     #break
                 #else:
+                """
                 mu /= barrier_reduction_factor
-                print("Newton iteration %d: step_nrm - "%(t), step_nrm)
-                self.A[i] -= delta 
+                #print("Newton iteration %d: step_nrm - "%(t), step_nrm)
+                #self.A[i] -= delta 
                 lst_mat[i] = self.A[i].copy()
                 if (step_nrm <= self.tol or converge_count == self.A[i].shape[0]):
                     break
@@ -677,7 +354,7 @@ class MSE():
 """
 2 Methods:
 	1. Alternating Least-Squares (ALS)
-	2. Alternating Minimization via Newtons Methods (AMN)
+	2. Alternating Minimization via Newtons Method (AMN)
 """
 
 
@@ -714,12 +391,12 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
 
         # Update model parameters X, one step at a time
         X = opt.step(reg,nnz)
-    return (X,err,i,0)
+    return (X,err,i)
 
 
-def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol, max_iter_amn, tol_newton, max_newton_iter, barrier_start, barrier_reduction_factor):
+def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
+            max_iter_amn, tol_newton, max_newton_iter, barrier_start, barrier_reduction_factor):
     # Establish solver
-    print(T_in)
     if (error_metric == "MLogQ2"):
         opt = MLogQ2(tenpy, T_in, O, X, tol_newton, max_newton_iter)
     elif (error_metric == "MLogQAbs"):
@@ -780,4 +457,4 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol, max_iter_amn, tol_newton, 
         n_newton_iterations += _n_newton_iterations
         nsweeps += 1
     print("Break with %d AMN sweeps, %d total Newton iterations"%(nsweeps,n_newton_iterations))
-    return (X,err,n_newton_iterations,n_newton_restarts)
+    return (X,err,nsweeps,n_newton_iterations)
