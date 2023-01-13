@@ -1,4 +1,4 @@
-import os, joblib, time, sys, copy
+import os, time, sys, copy
 import numpy as np
 import numpy.linalg as la
 import pandas as pd
@@ -8,7 +8,8 @@ import arg_defs as arg_defs
 from sklearn.ensemble import RandomForestRegressor
 
 sys.path.insert(0,'%s/../'%(os.getcwd()))
-from util import extract_datasets, get_error_metrics
+from util import extract_datasets, get_error_metrics,write_statistics_to_file,get_model_size,\
+                 transform_dataset, transform_predictor, transform_response, inverse_transform_response
 
 def generate_models(_ntrees,_depth):
     model_list = []
@@ -23,24 +24,16 @@ if __name__ == "__main__":
     arg_defs.add_general_arguments(parser)
     args, _ = parser.parse_known_args()
 
-    timers = [0.]*3	# Matrix generation, Solve, Total CV, Total Test Set evaluation
+    timers = [0.]*3
     training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
     test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
     param_list = training_df.columns[[int(n) for n in args.input_columns.split(',')]].tolist()
     data_list = training_df.columns[[int(n) for n in args.data_columns.split(',')]].tolist()
 
+    predictor_transform=[int(n) for n in args.predictor_transform.split(',')]
     tree_depth=[int(n) for n in args.tree_depth.split(',')]
     ntrees=[int(n) for n in args.ntrees.split(',')]
-    # Note: no option to transform data because basis functions assume certain structure,
-    #   and transforming the runtimes would necessitate transforming the basis functions.
-    # Generate list of model types parameterized on hyper-parameters
     model_list = generate_models(ntrees,tree_depth)
-
-    (training_inputs,training_data,training_set_size,\
-            validation_inputs,validation_data,validation_set_size,\
-            test_inputs,test_data,test_set_size,mode_range_min,mode_range_max)\
-      = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,\
-          args.test_set_size,args.training_set_split_percentage,args.mode_range_min,args.mode_range_max)
 
     if (args.print_diagnostics == 1):
 	print("Location of training data: %s"%(args.training_file))
@@ -51,38 +44,28 @@ if __name__ == "__main__":
 	print("param_list: ", param_list)
 	print(model_list)
 
+    (training_configurations,training_data,training_set_size,\
+            validation_configurations,validation_data,validation_set_size,\
+            test_configurations,test_data,test_set_size,mode_range_min,mode_range_max)\
+      = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,\
+          args.test_set_size,args.training_set_split_percentage,args.mode_range_min,args.mode_range_max)
+    training_configurations,training_data = transform_dataset(predictor_transform,args.response_transform,training_configurations,training_data)
+
     start_time = time.time()
     opt_model_parameters = [-1]
     current_best_model = []
-    opt_error_metrics = [100000.]*6	# arithmetic sum of log Q, arithmetic sum of log^2 Q, geometric mean of relative errors, MAPE, SMAPE, RMSE
+    opt_error_metrics = [100000.]*16
     for model_parameters in model_list:
 	rf_model = RandomForestRegressor(n_estimators=model_parameters[0],max_depth=model_parameters[1],random_state=0)
         model_predictions = []
         start_time_solve = time.time()
-        if (args.predictor_transform==1 and args.response_transform==1):
-	    rf_model.fit(np.log(training_inputs),np.log(training_data))
-        elif (args.predictor_transform==0 and args.response_transform==1):
-	    rf_model.fit(training_inputs,np.log(training_data))
-        elif (args.predictor_transform==1 and args.response_transform==0):
-	    rf_model.fit(np.log(training_inputs),training_data)
-        elif (args.predictor_transform==0 and args.response_transform==0):
-	    rf_model.fit(training_inputs,training_data)
-
-        joblib.dump(rf_model, "RF_Model.joblib") 
-	model_size = os.path.getsize('RF_Model.joblib')
-        print("RF model size: %f bytes"%(model_size))
-
+	rf_model.fit(training_configurations,training_data)
         timers[0] += (time.time()-start_time_solve)
         # Now validate on validation set
 	for k in range(validation_set_size):
-	    input_tuple = test_inputs[k,:]*1. if args.predictor_transform==0 else np.log(test_inputs[k,:]*1.) # Note: without this cast from into to float, interpolation produces zeros
-            # Box-cox: input_tuple = np.power([test_inputs[3*i],test_inputs[3*i+1],test_inputs[3*i+2]],1./np.absolute(data_transformation))
-            model_val = rf_model.predict([input_tuple])[0]
-            if (args.response_transform == 1):
-                model_val = np.exp(model_val)
-            model_predictions.append(model_val)
-
-        validation_error_metrics = get_error_metrics(validation_set_size,validation_inputs,validation_data,model_predictions)
+	    configuration = transform_predictor(predictor_transform,validation_configurations[k,:]*1.)
+            model_predictions.append(inverse_transform_response(args.response_transform,rf_model.predict([configuration])[0]))
+        validation_error_metrics = get_error_metrics(validation_set_size,validation_configurations,validation_data,model_predictions,args.print_test_error)
 	if (validation_error_metrics[2] < opt_error_metrics[1]):
 	    opt_model_parameters = copy.deepcopy(model_parameters)
 	    opt_error_metrics = copy.deepcopy(validation_error_metrics)
@@ -94,53 +77,19 @@ if __name__ == "__main__":
         opt_model_parameters = model_parameters
     timers[1] += (time.time()-start_time)
 
+    model_size = get_model_size(RF_Model,"RF_Model.joblib")
+
     start_time = time.time()
     model_predictions = []
     for k in range(test_set_size):
-	input_tuple = test_inputs[k,:]*1. if args.predictor_transform==0 else np.log(test_inputs[k,:]*1.) # Note: without this cast from into to float, interpolation produces zeros
-	# Box-cox: input_tuple = np.power([test_inputs[3*i],test_inputs[3*i+1],test_inputs[3*i+2]],1./np.absolute(data_transformation))
-	model_val = RF_Model.predict([input_tuple])[0]
-	if (args.response_transform == 1):
-	    model_val = np.exp(model_val)
-	model_predictions.append(model_val)
+        configuration = transform_predictor(predictor_transform,test_configurations[k,:]*1.)
+        model_predictions.append(inverse_transform_response(args.response_transform,RF_Model.predict([configuration])[0]))
     timers[2] += (time.time()-start_time)
+    test_error_metrics = get_error_metrics(test_set_size,test_configurations,test_data,model_predictions,args.print_test_error)
 
-    test_error_metrics = get_error_metrics(test_set_size,test_inputs,test_data,model_predictions)
-
-    # Write relevant error statistics to file
-    columns = (\
-        "input:training_set_size",\
-        "input:test_set_size",\
-        "input:predictor_transform",\
-        "input:response_transform",\
-        "ntrees",\
-        "max_tree_depth",\
-        "model_size",\
- 	"error:mlogq",\
-	"error:mlogq2",\
-	"error:gmre",\
-	"error:mape",\
-	"error:smape",\
-        "time:model_configuration",\
-        "time:model_configuration+validation",\
-        "time:prediction",\
-    )
-    test_results_dict = {0:{\
-        columns[0] : training_set_size,\
-        columns[1] : test_set_size,\
-        columns[2] : args.predictor_transform,\
-        columns[3] : args.response_transform,\
-        columns[4] : opt_model_parameters[0],\
-        columns[5] : opt_model_parameters[1],\
-        columns[6] : model_size,\
-	columns[7] : test_error_metrics[2],\
-	columns[8] : test_error_metrics[4],\
-	columns[9] : test_error_metrics[6],\
-	columns[10] : test_error_metrics[8],\
-	columns[11] : test_error_metrics[10],\
-        columns[12] : timers[0],\
-        columns[13] : timers[1],\
-        columns[14] : timers[2],\
-    } }
-    test_results_df = pd.DataFrame(data=test_results_dict,index=columns).T
-    test_results_df.to_csv("%s"%(args.output_file),sep=',',header=1,mode="a")
+    model_predictions = []
+    for k in range(training_set_size):
+        configuration = training_configurations[k,:]*1.
+        model_predictions.append(inverse_transform_response(args.response_transform,RF_Model.predict([configuration])[0]))
+    training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform,training_data),model_predictions,0)
+    write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[opt_model_parameters[0],opt_model_parameters[1]],["model:ntrees","model:max_tree_depth"])    

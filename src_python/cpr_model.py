@@ -12,13 +12,6 @@ from util import extract_datasets
 
 glob_comm = ctf.comm()
 
-"""
-if (ctf.comm().np()==1):
-    numpy_eval = 1
-else:
-    numpy_eval = args.numpy_eval
-"""
-
 def get_midpoint(idx, _nodes, spacing_id):
     # idx is assumed to be the leading coordinate of a cell. Therefore, idx+1 is always valid
     if (spacing_id == 0):
@@ -122,6 +115,8 @@ class cpr_model():
 	#print("contract_str: ", self.contract_str)
 
         """
+        NOTE: No benefit in unfolding tensor along certain modes. It just makes the tensor larger
+              and thus requiring a larger training set to achieve suficiently larger projection sets.
 	tensor_map = range(len(cell_nodes))
 	if (args.tensor_map != ''):
 	    tensor_map = [int(n) for n in args.tensor_map.split(',')]

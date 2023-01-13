@@ -7,182 +7,164 @@ def add_general_arguments(parser):
         metavar='int',
         help='Boolean decision whether to write column headers to CSV file (default: 0)')
     parser.add_argument(
-        '--scale_mode',
-        type=str,
-        default='strong',
-        metavar='str',
-        help='Kernel name (default: )')
-    parser.add_argument(
         '--training_set_size',
         type=int,
         default=0,
         metavar='int',
-        help='Number of randomly sampled inputs constrained to grid-points (default: 0). Typically a smaller integer than training_set_id')
+        help='Size of training set (default: 0).')
     parser.add_argument(
         '--test_set_size',
         type=int,
         default=0,
         metavar='int',
-        help='Number of randomly sampled inputs (default: 0)')
+        help='Size of test set (default: 0).')
     parser.add_argument(
         '--ngrid_pts',
         type=str,
-        default='',
+        default='2',
         metavar='str',
-        help='ID for discretization granularity of kernel configuration space. It can have a different meaning across kernels (default: 0)')
-    parser.add_argument(
-        '--check_training_error',
-        type=int,
-        default="0",
-        metavar='int',
-        help='')
+        help='ID for discretization granularity of kernel configuration space (default: 2).')
     parser.add_argument(
         '--cell_spacing',
         type=str,
-        default="0",
+        default="1",
         metavar='str',
-        help='ID for placement of grid-points constrained to a particular discretization granularity as specified by grid_type. Equivalently, ID for sampling distribution (default: 0)')
+        help='ID for placement of grid-points constrained to a particular discretization granularity (not necessarily equivalent to sampling distribution of training dataset (default: 1).')
     parser.add_argument(
         '--training_set_split_percentage',
         type=float,
         default='0',
         metavar='float',
-        help='Percentage of the training set used for model selection across hyper-parameter space (default: 0)')
+        help='Percentage of the training set used for model selection across hyper-parameter space (default: 0).')
     parser.add_argument(
         '--response_transform',
         type=int,
         default="1",
         metavar='int',
-        help='Transformation to apply to runtime data (default: 1 (Log transformation))')
+        help='Transformation to apply to runtime data (default: 1 (Log transformation)).')
     parser.add_argument(
         '--max_spline_degree',
         type=int,
         default="1",
         metavar='int',
-        help='Maximum spline degree for extrapolation model (default: 1)')
+        help='Maximum spline degree for extrapolation model (default: 1).')
     parser.add_argument(
         '--build_extrapolation_model',
         type=int,
         default="1",
         metavar='int',
-        help='Signifies whether to build a separate model for extrapolation (default: 1)')
+        help='Signifies whether to build a separate model for extrapolation (default: 1).')
     parser.add_argument(
         '--reg',
         type=str,
         default='1e-5',
         metavar='str',
-        help='regularization parameter (default: 1e-6)')
+        help='regularization coefficient (default: 1e-5).')
     parser.add_argument(
         '--max_num_sweeps',
         type=int,
         default='20',
         metavar='str',
-        help='Maximum number of sweeps of ALS or AMN (default: 20)')
+        help='Maximum number of sweeps of alternating minimization (default: 20).')
     parser.add_argument(
         '--sweep_tol',
         type=float,
         default='1e-3',
         metavar='float',
-        help='Tolerance for ALS or AMN (default: 1e-3)')
+        help='Error tolerance for alternating minimization method (default: 1e-3).')
     parser.add_argument(
         '--barrier_start',
         type=float,
         default='100',
         metavar='float',
-        help='Coefficient on barrier terms for initial ALS sweep (default: 1000)')
+        help='Coefficient on barrier terms for initial sweep of Alternating Minimization via Newtons method (default: 100).')
     parser.add_argument(
         '--barrier_reduction_factor',
         type=float,
         default='1.25',
         metavar='float',
-        help='Divisor for coefficient on barrier terms for subsequent ALS sweeps (default: 10)')
+        help='Divisor for coefficient on barrier terms for subsequent sweeps of Alternating Minimization via Newtons method (default: 1.25).')
     parser.add_argument(
         '--tol_newton',
         type=float,
         default='1e-3',
         metavar='float',
-        help='Tolerance for Newtons method (default: 1e-3)')
+        help='Change (in factor matrix) tolerance within Newtons method (default: 1e-3).')
     parser.add_argument(
         '--max_num_newton_iter',
         type=int,
         default='40',
         metavar='float',
-        help='Max number of iterations of Newtons method (default: 20)')
+        help='Maximum number of iterations of Newtons method (default: 40)')
     parser.add_argument(
         '--cp_rank',
         type=str,
         default="3",
         metavar='str',
-        help='Comma-delimited list of CP ranks (default: 1,2,3)')
-    parser.add_argument(
-        '--numpy_eval',
-        type=int,
-        default=1,
-        metavar='int',
-        help='ID specifying whether to use Numpy for evaluation. Only valid when using a single process and will switch automatically (default: 1)')
-    parser.add_argument(
-        '--tensor_map',
-        type=str,
-        default='',
-        metavar='str',
-        help='Comma-delimited tuple representing the mapping of parameters to tensor modes (default: )')
+        help='Comma-delimited list of Canonical-Polyadic tensor decomposition ranks (default: 3).')
     parser.add_argument(
         '--interp_map',
         type=str,
         default='',
         metavar='str',
-        help='Comma-delimited tuple representing which parameter modes to interpolate (default: )')
+        help='Comma-delimited list signifying which parameter ranges to interpolate (default: ).')
     parser.add_argument(
         '--training_file',
         type=str,
         default='',
         metavar='str',
-        help='Full file path to training data')
+        help='File path to training dataset.')
     parser.add_argument(
         '--test_file',
         type=str,
         default='',
         metavar='str',
-        help='Full file path to test data')
+        help='File path to test dataset.')
     parser.add_argument(
         '--output_file',
         type=str,
         default='',
         metavar='str',
-        help='Full file path to output data')
+        help='File path to write prediction results.')
     parser.add_argument(
         '--input_columns',
         type=str,
         default='',
         metavar='str',
-        help='Comma-delimited list of column indices corresponding to training/test inputs')
+        help='Comma-delimited list of column indices corresponding to each parameter witin a configuration for both training and test datasets.')
     parser.add_argument(
         '--data_columns',
         type=str,
         default='',
         metavar='str',
-        help='Comma-delimited list of column indices corresponding to training/test data')
+        help='Comma-delimited list of column indices corresponding to response (execution time) within training and test datasets (same format assumed for both).')
     parser.add_argument(
         '--mode_range_min',
         type=str,
         default='',
         metavar='str',
-        help='Comma-delimited list of minimum values for each parameter')
+        help='Comma-delimited list of minimum values for each parameter within a configuration.')
     parser.add_argument(
         '--mode_range_max',
         type=str,
         default='',
         metavar='str',
-        help='Comma-delimited list of maximum values for each parameter')
+        help='Comma-delimited list of maximum values for each parameter within a configuration.')
     parser.add_argument(
         '--print_model_parameters',
         type=int,
         default=0,
         metavar='int',
-        help='Whether or not to print the factor matrix elements (default: 0)')
+        help='Whether or not to print the factor matrix elements (default: 0).')
     parser.add_argument(
         '--print_diagnostics',
         type=int,
         default=0,
         metavar='int',
-        help='Whether or not to print default and input information (default: 0)')
+        help='Whether or not to print information about datasets (default: 0).')
+    parser.add_argument(
+        '--print_test_error',
+        type=int,
+        default="0",
+        metavar='int',
+        help='')
