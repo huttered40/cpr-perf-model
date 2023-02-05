@@ -7,6 +7,29 @@ import csv
 import ctf
 import random
 
+# Normalize each column within a factor matrix
+def normalize(X):
+    # Re-normalize by iterating over each column of each factor matrix
+    order = len(X)
+    temp = X[0].to_nparray()	# choice of index 0 is arbitrary
+    rank = len(temp[0,:])
+    for j in range(rank):
+	weight = 1
+	# Iterate over the j'th column of all d factor matrices
+	for k in range(order):
+            temp = X[k].to_nparray()	# choice of index 0 is arbitrary
+	    nrm = la.norm(temp[:,j])
+	    weight *= nrm
+            temp[:,j] /= nrm
+            X[k] = ctf.from_nparray(temp)
+	weight = weight**(1./order)
+	for k in range(order):
+            temp = X[k].to_nparray()	# choice of index 0 is arbitrary
+	    temp[:,j] *= weight
+            X[k] = ctf.from_nparray(temp)
+    return X
+
+
 def newton(f,Df,x0,epsilon,max_iter):
     '''Approximate solution of f(x)=0 by Newton's method.
 
@@ -126,10 +149,6 @@ class MLogQ2():
                 lst_mat.append(self.tenpy.zeros(self.A[num].shape))
 
         self.tenpy.MTTKRP(M,lst_mat,num)
-        #A_copy = self.A[num].copy()
-        #[inds,data] = A_copy.read_local_nnz()
-        #A_copy.write(inds,np.log(data)/data)
-        #grad = lst_mat[num] + regu*A_copy - mu/2./self.A[num]
         grad = lst_mat[num] + regu*self.A[num] - mu/2./self.A[num]
 
         [inds,data] = Constant.read_local_nnz()
@@ -398,18 +417,18 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
         reg_loss *= reg
         #print("(Loss,Regularization component of objective,Objective) at AMN sweep %d: %f,%f,%f)"%(nsweeps,err,reg_loss,err+reg_loss))
         print("%d,%f,%f,%f)"%(i,err,reg_loss,err+reg_loss))
-        #print("Loss %f at ALS sweep %d"%(err,i))
  
-        if err < tol or i== max_nsweeps:
+        if err < tol:
             break
 
         # Update model parameters X, one step at a time
         X = opt.step(reg,nnz)
+        X = normalize(X)
     return (X,err,i)
 
 
 def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
-            max_iter_amn, tol_newton, max_newton_iter, barrier_start, barrier_stop, barrier_reduction_factor):
+            max_nsweeps, tol_newton, max_newton_iter, barrier_start, barrier_stop, barrier_reduction_factor):
     # Establish solver
     if (error_metric == "MLogQ2"):
         opt = MLogQ2(tenpy, T_in, O, X, tol_newton, max_newton_iter)
@@ -424,20 +443,18 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
         nnz = np.sum(O)
 
     reg *= nnz
+    barrier_start *= nnz
+    barrier_stop *= nnz
 
     err_prev = np.inf
     X_prev = []
     for i in range(len(X)):
         X_prev.append(X[i].copy())
     err=np.inf
-    barrier_start = barrier_start * nnz
-    barrier_stop = barrier_stop * nnz
     n_newton_iterations=0
-    n_newton_restarts=0
-    nsweeps = 0
     TT = T_in.copy()
     ctf.Sparse_log(TT)
-    while(nsweeps<max_iter_amn):
+    for i in range(max_nsweeps+1):
         M = tenpy.TTTP(O,X)
         P = M.copy()
         if error_metric == "MLogQ2" or error_metric == "MLogQAbs":
@@ -457,17 +474,16 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
         reg_loss = 0
         for i in range(len(X)):
             [inds,data] = X[i].read_local_nnz()
-            #reg_loss += la.norm(np.log(data),2)**2
             reg_loss += la.norm(data,2)**2
         reg_loss *= (reg/nnz)
         #print("(Loss,Regularization component of objective,Objective) at AMN sweep %d: %f,%f,%f)"%(nsweeps,err,reg_loss,err+reg_loss))
-        print("%d,%f,%f,%f)"%(nsweeps,err,reg_loss,err+reg_loss))
+        print("%d,%f,%f,%f)"%(i,err,reg_loss,err+reg_loss))
         if (abs(err) > 10*abs(err_prev)):
             err = err_prev
             for i in range(len(X)):
                 X[i] = X_prev[i].copy()
             break
-        if (nsweeps>0 and abs(err)<tol or i==max_iter_amn):
+        if (i>0 and abs(err)<tol):
             break
         P.set_zero()
         M.set_zero()
@@ -475,7 +491,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
         for i in range(len(X)):
             X_prev[i] = X[i].copy()
         X,_n_newton_iterations = opt.step(reg,barrier_start,barrier_stop,barrier_reduction_factor)
+        X = normalize(X)
         n_newton_iterations += _n_newton_iterations
-        nsweeps += 1
-    print("Break with %d AMN sweeps, %d total Newton iterations"%(nsweeps,n_newton_iterations))
+    print("Break with %d AMN sweeps, %d total Newton iterations"%(i,n_newton_iterations))
     return (X,err,nsweeps,n_newton_iterations)

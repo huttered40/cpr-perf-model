@@ -57,7 +57,7 @@ def add_general_arguments(parser):
     parser.add_argument(
         '--reg',
         type=str,
-        default='1e-5',
+        default='1e-4',
         metavar='str',
         help='regularization coefficient (default: 1e-5).')
     parser.add_argument(
