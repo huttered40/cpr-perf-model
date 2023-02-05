@@ -34,6 +34,12 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     training_configurations = training_configurations[split_idx:(training_set_size+split_idx),:]
     training_data = training_data[split_idx:(training_set_size+split_idx)]
 
+    # Find maximum and minimum training execution times
+    min_time = np.amin(training_data)
+    max_time = np.amax(training_data)
+    print("Min time - ", min_time)
+    print("Max time - ", max_time)
+
     # Final selection of validation set
     validation_configurations = training_configurations[:split_idx]
     validation_data = training_data[:split_idx]

@@ -72,9 +72,9 @@ if __name__ == "__main__":
         cp_rank = model_parameters[1]
         reg_lambda = model_parameters[0]
         start_time_solve = time.time()
-        cpr_mod = cpr_model(cp_rank,reg_lambda,args.max_spline_degree,args.interp_map,\
+        cpr_mod = cpr_model(cp_rank,args.cp_rank_for_extrapolation,args.loss_function,reg_lambda,args.max_spline_degree,args.interp_map,\
                     args.response_transform,args.sweep_tol,args.max_num_sweeps,\
-                    args.tol_newton,args.max_num_newton_iter,args.barrier_start,\
+                    args.tol_newton,args.max_num_newton_iter,args.barrier_start,args.barrier_stop,\
                     args.barrier_reduction_factor,cell_spacing,ngrid_pts,mode_range_min,mode_range_max,
                     args.build_extrapolation_model)
         num_tensor_elements,density,loss1,loss2 = cpr_mod.fit(training_configurations,training_data)
@@ -104,10 +104,9 @@ if __name__ == "__main__":
         model_predictions.append(opt_model.predict(configuration))
     timers[2] += (time.time()-start_time)
     test_error_metrics = get_error_metrics(test_set_size,test_configurations,test_data,model_predictions,args.print_test_error)
-
     model_predictions = []
     for k in range(training_set_size):
 	configuration = training_configurations[k,:]*1.
 	model_predictions.append(opt_model.predict(configuration))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,training_data,model_predictions,0)
-    write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[len(ngrid_pts),opt_model_parameters[0],opt_model_parameters[1],opt_model_info[0],opt_model_info[1],opt_model_info[2],opt_model_info[3]],["model:tensor_dim","model:reg","model:cprank","model:ntensor_elems","model:tensor_density","model:loss1","model:loss2"])    
+    write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[len(ngrid_pts),opt_model_parameters[0],opt_model_parameters[1],opt_model_info[0],opt_model_info[1],opt_model_info[2],opt_model_info[3],args.cp_rank_for_extrapolation,args.loss_function,args.sweep_tol,args.max_num_sweeps,args.tol_newton,args.max_num_newton_iter,args.barrier_start,args.barrier_stop,args.barrier_reduction_factor],["model:tensor_dim","model:reg","model:cprank","model:ntensor_elems","model:tensor_density","model:loss1","model:loss2","extrap_cp_rank","loss_function","sweep_tol","max_num_sweeps","tol_newton","max_num_newton_iter","barrier_start","barrier_stop","barrier_reduction_factor"])    

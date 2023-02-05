@@ -63,25 +63,31 @@ def add_general_arguments(parser):
     parser.add_argument(
         '--max_num_sweeps',
         type=int,
-        default='20',
+        default='100',
         metavar='str',
         help='Maximum number of sweeps of alternating minimization (default: 20).')
     parser.add_argument(
         '--sweep_tol',
         type=float,
-        default='1e-3',
+        default='1e-5',
         metavar='float',
         help='Error tolerance for alternating minimization method (default: 1e-3).')
     parser.add_argument(
         '--barrier_start',
         type=float,
-        default='100',
+        default='1e1',
+        metavar='float',
+        help='Coefficient on barrier terms for initial sweep of Alternating Minimization via Newtons method (default: 100).')
+    parser.add_argument(
+        '--barrier_stop',
+        type=float,
+        default='1e-9',
         metavar='float',
         help='Coefficient on barrier terms for initial sweep of Alternating Minimization via Newtons method (default: 100).')
     parser.add_argument(
         '--barrier_reduction_factor',
         type=float,
-        default='1.25',
+        default='2',
         metavar='float',
         help='Divisor for coefficient on barrier terms for subsequent sweeps of Alternating Minimization via Newtons method (default: 1.25).')
     parser.add_argument(
@@ -102,6 +108,18 @@ def add_general_arguments(parser):
         default="3",
         metavar='str',
         help='Comma-delimited list of Canonical-Polyadic tensor decomposition ranks (default: 3).')
+    parser.add_argument(
+        '--cp_rank_for_extrapolation',
+        type=int,
+        default="1",
+        metavar='int',
+        help='Canonical-Polyadic tensor decomposition rank for use in extrapolation (default: 1).')
+    parser.add_argument(
+        '--loss_function',
+        type=int,
+        default="0",
+        metavar='int',
+        help='Loss function to optimize CPD Model for interpolation environment.')
     parser.add_argument(
         '--interp_map',
         type=str,

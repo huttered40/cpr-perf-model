@@ -79,11 +79,13 @@ def generate_nodes(_min,_max,num_grid_pts,spacing_type):
     return cell_nodes
 
 class cpr_model():
-    def __init__(self,cp_rank,reg,max_spline_degree,interpolation_map,response_transform,\
+    def __init__(self,cp_rank,cp_rank_for_extrapolation,loss_function,reg,max_spline_degree,interpolation_map,response_transform,\
                  sweep_tol,max_num_sweeps,tol_newton,max_num_newton_iter,\
-                 barrier_start,barrier_reduction_factor,cell_spacing,\
+                 barrier_start,barrier_stop,barrier_reduction_factor,cell_spacing,\
                  ngrid_pts,mode_range_min,mode_range_max,build_extrapolation_model):
         self.cp_rank = cp_rank
+        self.cp_rank_for_extrapolation = cp_rank_for_extrapolation
+        self.loss_function = loss_function
         self.reg = reg
         self.max_spline_degree = max_spline_degree
         self.response_transform = response_transform
@@ -92,6 +94,7 @@ class cpr_model():
         self.tol_newton = tol_newton
         self.max_num_newton_iter = max_num_newton_iter
         self.barrier_start = barrier_start
+        self.barrier_stop = barrier_stop
         self.barrier_reduction_factor = barrier_reduction_factor
         self.cell_spacing = cell_spacing
 	self.cell_nodes = []
@@ -111,7 +114,7 @@ class cpr_model():
 		if (self.cell_nodes[-1][j] <= self.cell_nodes[-1][j-1]):
 		    self.cell_nodes[-1][j] = self.cell_nodes[-1][j-1] + 1
 	self.contract_str = self.contract_str[:-1]
-	#print("cell_nodes: ", self.cell_nodes)
+	print("cell_nodes: ", self.cell_nodes)
 	#print("contract_str: ", self.contract_str)
 
         """
@@ -183,7 +186,7 @@ class cpr_model():
 	FM2 = []
 	for k in range(len(self.tensor_mode_lengths)):
 	    FM1.append(ctf.tensor((Tsparse.shape[k],self.cp_rank)))
-	    FM2.append(ctf.tensor((Tsparse.shape[k],1)))
+	    FM2.append(ctf.tensor((Tsparse.shape[k],self.cp_rank_for_extrapolation)))
 	    FM1[-1].fill_random()
 	    FM2[-1].fill_random(0,.01)
 	# Optimize model
@@ -209,10 +212,16 @@ class cpr_model():
 	    FM2,loss2,num_sweeps2,num_newton_iter2 =  cpd_amn("MLogQ2",\
 	      tenpy, _T_, omega, FM2, self.reg,\
 	      self.sweep_tol,self.max_num_sweeps, self.tol_newton,\
-	      self.max_num_newton_iter, self.barrier_start,self.barrier_reduction_factor)
+	      self.max_num_newton_iter, self.barrier_start,self.barrier_stop,self.barrier_reduction_factor)
             for k in range(len(self.tensor_mode_lengths)):
 	        self.FM2.append(FM2[k].to_nparray())
-	    for i in range(len(self.interp_modes)):	# Only extrapolate certain modes
+                """
+                # Addition for now, remove later. Note only works for rank-1 because only 1 column
+                scale = la.norm(self.FM2[-1][:,0],2)
+	        self.FM2[-1] /= scale
+                """
+            """
+	    for i in range(len(self.interp_modes)):	# One cannot simply extrapolate only certain modes.
 		self.extrap_params.append([])
 		#NOTE: Could try 3 instead of 2 to try quadratic global models
 		ls_mat = np.ones(shape=(len(self.FM2[self.interp_modes[i]][:,0]),1+self.max_spline_degree))
@@ -224,6 +233,21 @@ class cpr_model():
 		    #      permissable here.
 		    lsq_params,ret2,_,_ = la.lstsq(ls_mat[:,:],self.FM2[self.interp_modes[i]][:,j])
 		    self.extrap_params[-1].append(lsq_params)
+            """
+	    for i in range(len(self.tensor_mode_lengths)):	# One cannot simply extrapolate only certain modes.
+		self.extrap_params.append([])
+		#NOTE: Could try 3 instead of 2 to try quadratic global models
+		ls_mat = np.ones(shape=(len(self.FM2[i][:,0]),1+self.max_spline_degree))
+		#NOTE: Below might need to be log-transformed?
+		for j in range(self.max_spline_degree):
+		    ls_mat[:,1+j] = self.cell_nodes[i]**(1+j)
+		for j in range(len(self.FM2[i][0,:])):
+		    #NOTE: least-squares regression with no data transformation is
+		    #      permissable here.
+		    lsq_params,ret2,_,_ = la.lstsq(ls_mat[:,:],self.FM2[i][:,j])
+		    self.extrap_params[-1].append(lsq_params)
+            if (self.loss_function == 1):
+                self.FM1 = self.FM2	# Copy here so that in predict(...), the FM2 factor matrices are used.
         else:
             loss2 = 0
         return (self.num_grid_pts,density,loss1,loss2)
@@ -350,7 +374,7 @@ class cpr_model():
 		decisions[self.interp_modes[j]]=2
 	    else:
 		midpoints.append(get_midpoint(get_cell_index(input_tuple[self.interp_modes[j]],self.cell_nodes[self.interp_modes[j]]), self.cell_nodes[self.interp_modes[j]], self.cell_spacing[self.interp_modes[j]]))
-		local_interp_modes.append(j)
+		local_interp_modes.append(self.interp_modes[j])
 		local_interp_map[self.interp_modes[j]] = 1
 		decisions[self.interp_modes[j]]=5
 	element_index_modes_list = []
@@ -409,15 +433,22 @@ class cpr_model():
 		model_val += coeff * t_val
 	    return model_val
 	else:
-	    # Rank-1 prediction
-	    model_val = 1.
-	    for l in range(len(input_tuple)):
-                factor_matrix_contribution = 0
-                for ll in range(1+self.max_spline_degree):
-                    #TODO: Use horner's rule for faster eval
-		    factor_matrix_contribution += self.extrap_params[l][0][ll]*(input_tuple[l]**ll)
-                model_val *= factor_matrix_contribution
-	    return model_val
+	    # Rank-k prediction
+            model_prediction = 0
+            for lll in range(self.cp_rank_for_extrapolation):
+		model_val = 1.
+		for l in range(len(input_tuple)):
+                    #TODO: If we don't need to extrapolate along this mode, we can use the interpolation scheme above. So do this on a per-mode basis rather than all-or-nothing
+                    if (self.interp_map[l]==1):
+			factor_matrix_contribution = 0
+			for ll in range(1+self.max_spline_degree):
+			    #TODO: Use horner's rule for faster eval (not needed for small self.max_spline_degree)
+			    factor_matrix_contribution += self.extrap_params[l][lll][ll]*(input_tuple[l]**ll)
+                    else:
+                        factor_matrix_contribution = self.FM2[l][node[l],lll]
+		    model_val *= factor_matrix_contribution
+                model_prediction += model_val
+	    return model_prediction
 
     def print_parameters(self):
         print("Extrapolation model")
@@ -433,14 +464,27 @@ class cpr_model():
         for i in range(len(normalization_factors)):
             print("%f,"%(normalization_factors[i])),
         print("")
+        normalization_factors = [1]*len(self.FM2[0][0,:])
+        for i in range(len(self.FM2[0][0,:])):
+            for j in range(len(self.FM2)):
+                scale = la.norm(self.FM2[j][:,i],2)
+                normalization_factors[i] *= scale
+                #self.FM1[j][:,i] /= scale
+        # Print normalization constants
+        print("Normalization scaling factors")
+        for i in range(len(normalization_factors)):
+            print("%f,"%(normalization_factors[i])),
+        print("")
         # Print factor matrices
         for i in range(len(self.FM1)):
             print("Factor matrix %i"%(i))
             for k in range(len(self.FM1[i][:,0])):
                 print("%f,"%(self.cell_nodes[i][k])),
                 for j in range(len(self.FM1[i][0,:])):
-                    val = self.FM1[i][k,j]
-                    print("%f,"%(self.FM1[i][k,j]/(normalization_factors[j]**(1./3.)))),
+                    #val = self.FM1[i][k,j]
+                    scale = la.norm(self.FM1[i][:,j],2)
+                    #print("%f,"%(self.FM1[i][k,j]/(normalization_factors[j]**(1./3.)))),
+                    print("%f,"%(self.FM1[i][k,j]/scale)),
                 print("")
         # Print factor matrices
         for i in range(len(self.FM2)):
@@ -448,6 +492,7 @@ class cpr_model():
             for k in range(len(self.FM2[i][:,0])):
                 print("%f,"%(self.cell_nodes[i][k])),
                 for j in range(len(self.FM2[i][0,:])):
-                    val = self.FM2[i][k,j]
-                    print("%f,"%(self.FM2[i][k,j])),
+                    #val = self.FM2[i][k,j]
+                    scale = la.norm(self.FM2[i][:,j],2)
+                    print("%f,"%(self.FM2[i][k,j])),#/scale)),
                 print("")

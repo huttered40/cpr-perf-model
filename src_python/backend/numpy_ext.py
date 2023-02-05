@@ -53,14 +53,13 @@ def MTTKRP(T,A,idx):
 def is_master_proc():
     return True
 
+# NOTE: This Solve_Factor seems wrong. Use one in ctf_ext.py instead
 def Solve_Factor(Omega,A,RHS,num,reg):
-    print("blah9")
     N = len(A)
     R = A[0].shape[1]
     lst_mat = []
     T_inds = "".join([chr(ord('a')+i) for i in range(Omega.ndim)])
     einstr=""
-    print("blah9.25")
     for i in range(N):
         if i != num:
             einstr+=chr(ord('a')+i) + 'r' + ','
@@ -68,16 +67,11 @@ def Solve_Factor(Omega,A,RHS,num,reg):
             einstr+=chr(ord('a')+i) + 'z' + ','
             lst_mat.append(A[i])
     einstr+= T_inds + "->"+chr(ord('a')+num)+'rz'
-    print("blah9.5")
     lst_mat.append(Omega)
-    print("blah9.75")
     P = np.einsum(einstr,*lst_mat,optimize=True)
-    print("blah9.85")
     o = np.zeros_like(RHS)
-    print("blah9.95")
     for j in range(A[num].shape[0]):
         o[j,:] = la.solve(P[j]+reg*np.eye(R),RHS[j,:])
-    print("blah9.99")
     return o
 
 def printf(*string):

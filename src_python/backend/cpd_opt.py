@@ -126,6 +126,10 @@ class MLogQ2():
                 lst_mat.append(self.tenpy.zeros(self.A[num].shape))
 
         self.tenpy.MTTKRP(M,lst_mat,num)
+        #A_copy = self.A[num].copy()
+        #[inds,data] = A_copy.read_local_nnz()
+        #A_copy.write(inds,np.log(data)/data)
+        #grad = lst_mat[num] + regu*A_copy - mu/2./self.A[num]
         grad = lst_mat[num] + regu*self.A[num] - mu/2./self.A[num]
 
         [inds,data] = Constant.read_local_nnz()
@@ -133,7 +137,7 @@ class MLogQ2():
         ctf.Sparse_mul(Constant,M_reciprocal2)
         return [grad,Constant]
 
-    def step(self,regu,barrier_coeff,barrier_reduction_factor):
+    def step(self,regu,barrier_start,barrier_stop,barrier_reduction_factor):
         newton_count = 0
         # Sweep over each factor matrix.
         for i in range(len(self.A)):
@@ -142,60 +146,62 @@ class MLogQ2():
                 lst_mat.append(self.A[j].copy())
             # Minimize convex objective -> Newton's method
             # Reset barrier coefficient to starting value
-            mu = barrier_coeff
+            mu = barrier_start
             converge_list = np.ones(self.A[i].shape[0])
             converge_count = 0
             # Optimize factor matrix i by solving each row's nonlinear loss via multiple steps of Newtons method.
-	    prev_step_nrm = np.inf
-            t=0
-            while (t<self.max_newton_iterations):
-                t += 1
-                [g,m] = self.Get_RHS(i,regu,mu)
-                grad_nrm = self.tenpy.vecnorm(g)
+            while (mu >= barrier_stop):
+                t=0
+	        prev_step_nrm = np.inf
+		while (t<self.max_newton_iterations):
+		    t += 1
+		    [g,m] = self.Get_RHS(i,regu,mu)
+		    grad_nrm = self.tenpy.vecnorm(g)
 
-                if self.tenpy.name() == "numpy": 
-                    delta = self.tenpy.Solve_Factor(m,lst_mat,g,i,regu)
-                else:
-                    self.tenpy.Solve_Factor(m,lst_mat,g,i,regu,mu)
-                    delta = lst_mat[i]
-                step_nrm = self.tenpy.vecnorm(delta)/self.tenpy.vecnorm(self.A[i])
-                """
-                if (step_nrm > 10*prev_step_nrm):
-		    print("Break early due to large step: %f,%f"%(prev_step_nrm,step_nrm))
-                    break
-                """
-		prev_step_nrm = step_nrm
-		# Verify that following update of factor matrix, every element is positive.
+		    if self.tenpy.name() == "numpy": 
+			delta = self.tenpy.Solve_Factor(m,lst_mat,g,i,0,regu,mu)
+		    else:
+			self.tenpy.Solve_Factor(m,lst_mat,g,i,0,regu,mu)
+			delta = lst_mat[i]
+		    step_nrm = self.tenpy.vecnorm(delta)/self.tenpy.vecnorm(self.A[i])
+		    """
+		    if (step_nrm > 10*prev_step_nrm):
+			print("Break early due to large step: %f,%f"%(prev_step_nrm,step_nrm))
+			break
+		    """
+		    prev_step_nrm = step_nrm
+		    # Verify that following update of factor matrix, every element is positive.
 
-                temp_update = self.A[i] - delta
+		    temp_update = self.A[i] - delta
 
-                [inds,data] = temp_update.read_local()
-                data[data<=0]=1e-6	# hacky reset
-                self.A[i].write(inds,data)
-                """
-                while (np.any(data<=0)):
-		    print("barrier val - ", mu)
-                    print("newton iter - ", t)
-                    print("updated factor matrix data - ", data)
-                    assert(0)
-                    [delta_inds,delta_data] = delta.read_local()
-		    delta_data /= 2
-                    delta.write(delta_inds,delta_data)
-                    temp_update = self.A[i] - delta
-                    [inds,data] = temp_update.read_local()
-                    #data[data<=0]=1e-6	# hacky reset
-		    #print("Neg values!")
-                    #self.A[i].write(inds,data)
-                    #break
-                #else:
-                """
-                mu /= barrier_reduction_factor
-                #print("Newton iteration %d: step_nrm - "%(t), step_nrm)
-                #self.A[i] -= delta 
-                lst_mat[i] = self.A[i].copy()
-                if (step_nrm <= self.tol or converge_count == self.A[i].shape[0]):
-                    break
-            newton_count += t
+		    [inds,data] = temp_update.read_local()
+		    data[data<=0]=1e-6	# hacky reset
+		    self.A[i].write(inds,data)
+		    lst_mat[i] = self.A[i].copy()
+		    """
+		    while (np.any(data<=0)):
+			print("barrier val - ", mu)
+			print("newton iter - ", t)
+			print("updated factor matrix data - ", data)
+			assert(0)
+			[delta_inds,delta_data] = delta.read_local()
+			delta_data /= 2
+			delta.write(delta_inds,delta_data)
+			temp_update = self.A[i] - delta
+			[inds,data] = temp_update.read_local()
+			#data[data<=0]=1e-6	# hacky reset
+			#print("Neg values!")
+			#self.A[i].write(inds,data)
+			#break
+		    #else:
+		    """
+                    #print(i,ii,mu,step_nrm)
+		    if (step_nrm <= self.tol or converge_count == self.A[i].shape[0]):
+			break
+		mu /= barrier_reduction_factor
+		#print("Newton iteration %d: step_nrm - "%(t), step_nrm)
+		#self.A[i] -= delta 
+		newton_count += t
         return self.A,newton_count
 
 
@@ -342,9 +348,9 @@ class MSE():
             # The Tensor is T, and the Khatri-Rao Product is among all but the i'th factor matrix.
             g = self.Get_RHS(i,reg*nnz)
             if self.tenpy.name() == "numpy": 
-                self.A[i] = self.tenpy.Solve_Factor(self.Omega,lst_mat,g,i,reg*nnz)
+                self.A[i] = self.tenpy.Solve_Factor(self.Omega,lst_mat,g,i,reg*nnz,0,0)
             else:
-                self.tenpy.Solve_Factor(self.Omega,lst_mat,g,i,reg*nnz,0)
+                self.tenpy.Solve_Factor(self.Omega,lst_mat,g,i,reg*nnz,0,0)
                 self.A[i] = lst_mat[i]
         # Return the updated factor matrices
         return self.A
@@ -365,7 +371,7 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
     # T_in - sparse tensor of data
     # Assumption is that the error is MSE with optional regularization
     if tenpy.name() == 'ctf':
-        nnz = np.sum(O.read_all())
+        nnz = len(O.read_local_nnz()[0])
     else:
         nnz = np.sum(O)
     opt = MSE(tenpy, T_in, O, X)
@@ -384,8 +390,16 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
         else:
             M = T_in - M
         err = (tenpy.vecnorm(M)/np.sqrt(nnz))**2
-        print("Loss %f at ALS sweep %d"%(err,i))
-        
+        reg_loss = 0
+        for j in range(len(X)):
+            [inds,data] = X[j].read_local_nnz()
+            #reg_loss += la.norm(np.log(data),2)**2
+            reg_loss += la.norm(data,2)**2
+        reg_loss *= reg
+        #print("(Loss,Regularization component of objective,Objective) at AMN sweep %d: %f,%f,%f)"%(nsweeps,err,reg_loss,err+reg_loss))
+        print("%d,%f,%f,%f)"%(i,err,reg_loss,err+reg_loss))
+        #print("Loss %f at ALS sweep %d"%(err,i))
+ 
         if err < tol or i== max_nsweeps:
             break
 
@@ -395,7 +409,7 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
 
 
 def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
-            max_iter_amn, tol_newton, max_newton_iter, barrier_start, barrier_reduction_factor):
+            max_iter_amn, tol_newton, max_newton_iter, barrier_start, barrier_stop, barrier_reduction_factor):
     # Establish solver
     if (error_metric == "MLogQ2"):
         opt = MLogQ2(tenpy, T_in, O, X, tol_newton, max_newton_iter)
@@ -405,7 +419,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
         assert(0)
 
     if tenpy.name() == 'ctf':
-        nnz = np.sum(O.read_all())
+        nnz = len(O.read_local_nnz()[0])
     else:
         nnz = np.sum(O)
 
@@ -416,7 +430,8 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
     for i in range(len(X)):
         X_prev.append(X[i].copy())
     err=np.inf
-    barrier_coeff = barrier_start * nnz
+    barrier_start = barrier_start * nnz
+    barrier_stop = barrier_stop * nnz
     n_newton_iterations=0
     n_newton_restarts=0
     nsweeps = 0
@@ -439,7 +454,14 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
             err = tenpy.abs_sum(P)/nnz
 	else:
             assert(0)
-        print("Loss %f at AMN sweep %d"%(err,nsweeps))
+        reg_loss = 0
+        for i in range(len(X)):
+            [inds,data] = X[i].read_local_nnz()
+            #reg_loss += la.norm(np.log(data),2)**2
+            reg_loss += la.norm(data,2)**2
+        reg_loss *= (reg/nnz)
+        #print("(Loss,Regularization component of objective,Objective) at AMN sweep %d: %f,%f,%f)"%(nsweeps,err,reg_loss,err+reg_loss))
+        print("%d,%f,%f,%f)"%(nsweeps,err,reg_loss,err+reg_loss))
         if (abs(err) > 10*abs(err_prev)):
             err = err_prev
             for i in range(len(X)):
@@ -452,8 +474,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
         err_prev = err
         for i in range(len(X)):
             X_prev[i] = X[i].copy()
-        #barrier_coeff /= barrier_reduction		# BAD IDEA
-        X,_n_newton_iterations = opt.step(reg,barrier_coeff,barrier_reduction_factor)
+        X,_n_newton_iterations = opt.step(reg,barrier_start,barrier_stop,barrier_reduction_factor)
         n_newton_iterations += _n_newton_iterations
         nsweeps += 1
     print("Break with %d AMN sweeps, %d total Newton iterations"%(nsweeps,n_newton_iterations))
