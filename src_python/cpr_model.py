@@ -256,98 +256,6 @@ class cpr_model():
         node = []
         for j in range(len(input_tuple)):
             node.append(get_node_index(input_tuple[j],self.cell_nodes[j],self.cell_spacing[j]))
-	"""
-	midpoints = []
-	local_interp_modes = []
-	local_interp_map = [0]*len(input_tuple)
-	decisions = [0]*len(input_tuple)
-	for j in range(len(interp_modes)):
-	    #cell_node_idx = interp_modes[j]
-	    # check if input_tuple[interp_modes[j]] is outside of the cell_nodes on either side
-	    left_midpoint = get_midpoint(0, cell_nodes[interp_modes[j]], cell_spacing[interp_modes[j]])
-	    right_midpoint = get_midpoint(len(cell_nodes[interp_modes[j]])-2, cell_nodes[interp_modes[j]], cell_spacing[interp_modes[j]])
-	    if (input_tuple[interp_modes[j]] < cell_nodes[interp_modes[j]][0]):
-		# extrapolation necessary: outside range of bounding box on left
-		decisions[interp_modes[j]]=1
-	    elif (input_tuple[interp_modes[j]] > cell_nodes[interp_modes[j]][-1]):
-		# extrapolation necessary: outside range of bounding box on right
-		decisions[interp_modes[j]]=2
-	    elif (input_tuple[interp_modes[j]] < left_midpoint):
-		# extrapolation necessary: inside range of bounding box on left, but left of left-most midpoint
-		decisions[interp_modes[j]]=3
-	    elif (input_tuple[interp_modes[j]] > right_midpoint):
-		# extrapolation necessary: inside range of bounding box on right, but right of right-most midpoint
-		decisions[interp_modes[j]]=4
-	    else:
-		midpoints.append(get_midpoint(get_cell_index(input_tuple[interp_modes[j]],cell_nodes[interp_modes[j]]), cell_nodes[interp_modes[j]], cell_spacing[interp_modes[j]]))
-		local_interp_modes.append(j)
-		local_interp_map[interp_modes[j]] = 1
-		decisions[interp_modes[j]]=5
-	element_index_modes_list = []
-	for j in range(len(local_interp_modes)):
-	    element_index_modes_list.append([])
-	    for xx in range(2):
-		if (input_tuple[local_interp_modes[j]] <= midpoints[j]):
-		    element_index_modes_list[-1].append(node[local_interp_modes[j]]-(2-1)/2+xx)
-		else:
-		    element_index_modes_list[-1].append(node[local_interp_modes[j]]-2/2+xx)
-	model_val = 0.
-	# Do not consider extrapolation modes
-	for j in range(2**len(local_interp_modes)):
-	    interp_id = j
-	    interp_id_list = [0]*len(local_interp_modes)
-	    counter = 0
-	    while (interp_id>0):
-		interp_id_list[counter] = interp_id%2
-		interp_id /= 2
-		counter += 1
-	    coeff = 1
-	    for l in range(len(local_interp_modes)):
-		cell_node_idx = local_interp_modes[l]
-		for ll in range(2):
-		    if (ll != interp_id_list[l]):
-			coeff *= (input_tuple[local_interp_modes[l]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])\
-				 /(cell_nodes[cell_node_idx][element_index_modes_list[l][interp_id_list[l]]]-cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])
-	    factor_row_list = []
-	    interp_counter = 0
-	    for l in range(len(input_tuple)):
-		if (local_interp_map[l]==1):
-		    factor_row_list.append(_FM_[l][element_index_modes_list[interp_counter][interp_id_list[interp_counter]],:])
-		    interp_counter += 1
-		else:
-		    if (decisions[l]==0):	# categorical or non-numerical parameter in which interpolation/extrapolation is not relevant
-			factor_row_list.append(_FM_[l][node[l],:])
-		    elif (decisions[l]==1):
-			row_data = []
-			for ll in range(len(_FM_[l][0,:])):
-			    row_data.append(extrap_params[l][ll][0] + extrap_params[l][ll][1]*np.log(input_tuple[l]))
-			factor_row_list.append(np.array(row_data))
-		    elif (decisions[l]==2):
-			row_data = []
-			for ll in range(len(_FM_[l][0,:])):
-			    row_data.append(extrap_params[l][ll][0] + extrap_params[l][ll][1]*np.log(input_tuple[l]))
-			factor_row_list.append(np.array(row_data))
-		    elif (decisions[l]==3):
-			row_data = []
-			for ll in range(len(FM[l][0,:])):
-			    row_data.append(_FM_[l][0,ll] + (input_tuple[l]-cell_nodes[l][0])/(cell_nodes[l][1]-cell_nodes[l][0])*(_FM_[l][1,ll]-_FM_[l][0,ll]))
-			factor_row_list.append(np.array(row_data))
-		    elif (decisions[l]==4):
-			row_data = []
-			for ll in range(len(FM[l][0,:])):
-			    row_data.append(_FM_[l][-2,ll] + (input_tuple[l]-cell_nodes[l][-2])/(cell_nodes[l][-1]-cell_nodes[l][-2])*(_FM_[l][-1,ll]-_FM_[l][-2,ll]))
-			factor_row_list.append(np.array(row_data))
-            t_val = np.einsum(contract_str,*factor_row_list)
-	    if (self.response_transform==0):
-		pass
-	    elif (self.response_transform==1):
-		t_val = np.exp(1)**t_val
-		pass
-	    else:
-		assert(0)
-	    model_val += coeff * t_val
-	return model_val
-	"""
 	midpoints = []
 	local_interp_modes = []
 	local_interp_map = [0]*len(input_tuple)
@@ -469,7 +377,7 @@ class cpr_model():
             for j in range(len(self.FM2)):
                 scale = la.norm(self.FM2[j][:,i],2)
                 normalization_factors[i] *= scale
-                #self.FM1[j][:,i] /= scale
+                #self.FM2[j][:,i] /= scale
         # Print normalization constants
         print("Normalization scaling factors")
         for i in range(len(normalization_factors)):
@@ -494,5 +402,5 @@ class cpr_model():
                 for j in range(len(self.FM2[i][0,:])):
                     #val = self.FM2[i][k,j]
                     scale = la.norm(self.FM2[i][:,j],2)
-                    print("%f,"%(self.FM2[i][k,j])),#/scale)),
+                    print("%f,"%(self.FM2[i][k,j]))/scale)),
                 print("")
