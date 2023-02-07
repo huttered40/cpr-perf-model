@@ -45,7 +45,7 @@ def add_general_arguments(parser):
     parser.add_argument(
         '--max_spline_degree',
         type=int,
-        default="1",
+        default="3",
         metavar='int',
         help='Maximum spline degree for extrapolation model (default: 1).')
     parser.add_argument(
@@ -81,13 +81,13 @@ def add_general_arguments(parser):
     parser.add_argument(
         '--barrier_stop',
         type=float,
-        default='1e-9',
+        default='1e-11',
         metavar='float',
         help='Coefficient on barrier terms for initial sweep of Alternating Minimization via Newtons method (default: 100).')
     parser.add_argument(
         '--barrier_reduction_factor',
         type=float,
-        default='2',
+        default='8',
         metavar='float',
         help='Divisor for coefficient on barrier terms for subsequent sweeps of Alternating Minimization via Newtons method (default: 1.25).')
     parser.add_argument(
