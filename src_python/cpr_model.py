@@ -6,6 +6,8 @@ import random as rand
 import pandas as pd
 import arg_defs as arg_defs
 
+import pyearth as pe
+
 import backend.ctf_ext as tenpy
 from backend.cpd_opt import cpd_als,cpd_amn
 from util import extract_datasets
@@ -102,7 +104,7 @@ class cpr_model():
         self.num_grid_pts = 1
 	self.FM1 = []
 	self.FM2 = []
-	self.extrap_params = []
+	self.extrap_models = []
         self.build_extrapolation_model = build_extrapolation_model
 
         dim = len(cell_spacing)
@@ -220,32 +222,11 @@ class cpr_model():
                 scale = la.norm(self.FM2[-1][:,0],2)
 	        self.FM2[-1] /= scale
                 """
-            """
-	    for i in range(len(self.interp_modes)):	# One cannot simply extrapolate only certain modes.
-		self.extrap_params.append([])
-		#NOTE: Could try 3 instead of 2 to try quadratic global models
-		ls_mat = np.ones(shape=(len(self.FM2[self.interp_modes[i]][:,0]),1+self.max_spline_degree))
-		#NOTE: Below might need to be log-transformed?
-		for j in range(self.max_spline_degree):
-		    ls_mat[:,1+j] = self.cell_nodes[self.interp_modes[i]]**(1+j)
-		for j in range(len(self.FM2[self.interp_modes[i]][0,:])):
-		    #NOTE: least-squares regression with no data transformation is
-		    #      permissable here.
-		    lsq_params,ret2,_,_ = la.lstsq(ls_mat[:,:],self.FM2[self.interp_modes[i]][:,j])
-		    self.extrap_params[-1].append(lsq_params)
-            """
 	    for i in range(len(self.tensor_mode_lengths)):	# One cannot simply extrapolate only certain modes.
-		self.extrap_params.append([])
-		#NOTE: Could try 3 instead of 2 to try quadratic global models
-		ls_mat = np.ones(shape=(len(self.FM2[i][:,0]),1+self.max_spline_degree))
-		#NOTE: Below might need to be log-transformed?
-		for j in range(self.max_spline_degree):
-		    ls_mat[:,1+j] = self.cell_nodes[i]**(1+j)
+		self.extrap_models.append([])
 		for j in range(len(self.FM2[i][0,:])):
-		    #NOTE: least-squares regression with no data transformation is
-		    #      permissable here.
-		    lsq_params,ret2,_,_ = la.lstsq(ls_mat[:,:],self.FM2[i][:,j])
-		    self.extrap_params[-1].append(lsq_params)
+	            self.extrap_models[-1].append(pe.Earth(max_degree=self.max_spline_degree,allow_linear=False))
+              	    self.extrap_models[-1][-1].fit(np.log(self.cell_nodes[i].reshape(-1,1)),np.log(self.FM2[i][:,j]))
             if (self.loss_function == 1):
                 self.FM1 = self.FM2	# Copy here so that in predict(...), the FM2 factor matrices are used.
         else:
@@ -286,14 +267,14 @@ class cpr_model():
 		local_interp_map[self.interp_modes[j]] = 1
 		decisions[self.interp_modes[j]]=5
 	element_index_modes_list = []
+	for j in range(len(local_interp_modes)):
+	    element_index_modes_list.append([])
+	    for xx in range(2):
+		if (input_tuple[local_interp_modes[j]] <= midpoints[j]):
+		    element_index_modes_list[-1].append(node[local_interp_modes[j]]-(2-1)/2+xx)
+		else:
+		    element_index_modes_list[-1].append(node[local_interp_modes[j]]-2/2+xx)
 	if (is_interpolation == True or self.build_extrapolation_model==0):
-	    for j in range(len(local_interp_modes)):
-		element_index_modes_list.append([])
-		for xx in range(2):
-		    if (input_tuple[local_interp_modes[j]] <= midpoints[j]):
-			element_index_modes_list[-1].append(node[local_interp_modes[j]]-(2-1)/2+xx)
-		    else:
-			element_index_modes_list[-1].append(node[local_interp_modes[j]]-2/2+xx)
 	    model_val = 0.
 	    # Do not consider extrapolation modes
 	    for j in range(2**len(local_interp_modes)):
@@ -341,17 +322,17 @@ class cpr_model():
 		model_val += coeff * t_val
 	    return model_val
 	else:
-	    # Rank-k prediction
             model_prediction = 0
             for lll in range(self.cp_rank_for_extrapolation):
 		model_val = 1.
 		for l in range(len(input_tuple)):
-                    #TODO: If we don't need to extrapolate along this mode, we can use the interpolation scheme above. So do this on a per-mode basis rather than all-or-nothing
                     if (self.interp_map[l]==1):
-			factor_matrix_contribution = 0
-			for ll in range(1+self.max_spline_degree):
-			    #TODO: Use horner's rule for faster eval (not needed for small self.max_spline_degree)
-			    factor_matrix_contribution += self.extrap_params[l][lll][ll]*(input_tuple[l]**ll)
+                        if (local_interp_map[l]==0):
+			    factor_matrix_contribution = 0
+			    factor_matrix_contribution += np.exp(1)**self.extrap_models[l][lll].predict([np.log(input_tuple[l])])[0]
+                        else:
+                            factor_matrix_contribution = self.FM2[l][node[l],lll] + (input_tuple[l]-self.cell_nodes[l][node[l]]) * (self.FM2[l][node[l]+1,lll] - self.FM2[l][node[l],lll])\
+                                     /(self.cell_nodes[l][node[l]+1]-self.cell_nodes[l][node[l]])
                     else:
                         factor_matrix_contribution = self.FM2[l][node[l],lll]
 		    model_val *= factor_matrix_contribution
@@ -360,7 +341,10 @@ class cpr_model():
 
     def print_parameters(self):
         print("Extrapolation model")
-        print(self.extrap_params)
+        if (self.build_extrapolation_model):
+            for i in range(len(self.FM2[0][0,:])):
+                for j in range(len(self.FM2)):
+                    print(self.extrap_models[j][i].summary())
         normalization_factors = [1]*len(self.FM1[0][0,:])
         for i in range(len(self.FM1[0][0,:])):
             for j in range(len(self.FM1)):
@@ -389,9 +373,7 @@ class cpr_model():
             for k in range(len(self.FM1[i][:,0])):
                 print("%f,"%(self.cell_nodes[i][k])),
                 for j in range(len(self.FM1[i][0,:])):
-                    #val = self.FM1[i][k,j]
                     scale = la.norm(self.FM1[i][:,j],2)
-                    #print("%f,"%(self.FM1[i][k,j]/(normalization_factors[j]**(1./3.)))),
                     print("%f,"%(self.FM1[i][k,j]/scale)),
                 print("")
         # Print factor matrices
@@ -400,7 +382,6 @@ class cpr_model():
             for k in range(len(self.FM2[i][:,0])):
                 print("%f,"%(self.cell_nodes[i][k])),
                 for j in range(len(self.FM2[i][0,:])):
-                    #val = self.FM2[i][k,j]
                     scale = la.norm(self.FM2[i][:,j],2)
-                    print("%f,"%(self.FM2[i][k,j]))/scale)),
+                    print("%f,"%(self.FM2[i][k,j]/scale)),
                 print("")
