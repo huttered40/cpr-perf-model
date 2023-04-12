@@ -2,17 +2,11 @@
 
 Welcome!
 
-This repository hosts a software framework for high-dimensional performance modeling via low-rank tensor decomposition.
-An application's modeling domain is discretized using multi-dimensional regular grids.
-Performance data sampled across this domain comprise tensors, elements of which represent sample means of measured performance of configurations mapped within corresponding grid-cells.
-Low-rank factorizations of these tensors are then used to predict the execution time of a given configuration.
+This repository hosts a software framework for high-dimensional performance modeling via tensor completion.
+See our preprint for experimental studies: https://arxiv.org/abs/2210.10184
 
 This Python (v2.7) framework configures canonical-polyadic (CP) tensor decomposition models from provided performance data and
 leverages high-performance tensor computation software publically available within the Cyclops Tensor Framework.
-
-## Highlights
-This framework enables **user-directed discretization** of high-dimensional modeling domains.
-Our experiments have shown that mean-squared loss functions with logarithmic transformations to execution data are most accurate, efficient, and robust to roundoff error during model optimization. Our interface therefore is limited to this class of loss functions. See our preprint for experimental studies: https://arxiv.org/abs/2210.10184
 
 ## Build and Use
 Clone `https://github.com/navjo2323/ctf` and update `PYTHONPATH` to reference the `lib_python` subdirectory within the cloned directory.
@@ -39,41 +33,53 @@ The remaining partition will be used to evaluate the configured CP decomposition
 Minimum and maximum values can be specified as comma-delimited lists for each benchmark parameter within `mode_range_min` and `mode_range_max`, respectively.
 If left unspecified, the range of each parameter will be deduced from the training data.
 
-A number of model parameters govern CP decomposition performance model optimization, including `cell_spacing`, `ngrid_pts`, `response_transform`, `interp_map`, `nals_sweeps`, `reg`, and `cp_rank`.
+A number of model parameters govern CP decomposition performance model optimization, including `cell_spacing`, `ngrid_pts`, `response_transform`, `interp_map`, `max_num_sweeps`, `reg`, and `cp_rank`.
 `cell_spacing`, `ngrid_pts`, and `interp_map` each take a comma-delimited list, the size of which equates to the number of benchmark parameters.
 `cell_spacing`=0,1 signifies that along the first and second benchark parameters, uniform spacing and geometric spacing is used to partition the ranges of the corresponding parameters, respectively.
 `ngrid_pts` then specifies the number of grid-points to place along the range of each parameter (including boundaries).
 `interp_map` specifies which tensor modes (equivalently dimensions of the underlying regular grid) to interpolate during inference time using the configured CP decomposition model.
 Users may set `response_transform`=0 to use raw execution data and `response_transform`=1 to apply a logarithmic transformation.
-`cp_rank` specifies the CP rank of the model, `reg` specifies the regularization parameter in the underlying objective function, and `nals_sweeps` specifies the maximum number of sweeps of the alternating least-squares algorithm used to optimize the CP decomposition.
+`cp_rank` specifies the CP rank of the model, `reg` specifies the regularization parameter in the underlying objective function, and `max_num_sweeps` specifies the maximum number of sweeps of one of the alternating minimization methods (e.g., alternating least-squares) used to optimize the CP decomposition.
 
 A complete list of runtime arguments is provided below:
 
-| Argument  | Meaning |
-| ------------- | ------------- |
-| training_file | Full path to csv file that stores training set |
-| test_file | Full path to csv file that stores test set |
-| output_file | Full path to csv file to write results |
-| input_columns | Comma-delimited list of column indices corresponding to benchmark parameters |
-| data_columns | Column index corresponding to execution times |
-| training_set_size | Number of samples to use from specified training set |
-| test_set_size | Number of samples to use from specified test set |
-| test_set_split_percentage | Percentage of test-set samples to use for hyper-parameter selection |
-| mode_range_min | Comma-delimited list of minimum values taken by each benchmark parameter  |
-| mode_range_max | Comma-delimited list of maximum values taken by each benchmark parameter |
-| cell_spacing | Comma-delimited list specifying the spacing between grid-points (0: Uniform spacing, 1: Geometric spacing) |
-| ngrid_pts | Comma-delimited list specifying the number of grid-points (including end-points) along each dimension |
-| response_transform | Whether or not to transform execution data (0: No transformation to execution data, 1: Logarithm transformation to execution data) |
-| interp_map | Comma-delimited list specifying which tensor modes (equivalently grid dimensions) about which to interpolate (0: No interpolation, 1: Interpolate) |
-| nals_sweeps | Number of sweeps of the Alternating Least Squares algorithm |
-| reg | Regularization parameter |
-| cp_rank | Canonical-Polyadic tensor decomposition rank |
+| Argument  | Meaning |  Default  |
+| ------------- | ------------- | ------------- |
+| training_file | Full path to csv file that stores training set | N/A |
+| test_file | Full path to csv file that stores test set | N/A |
+| output_file | Full path to csv file to write results | N/A |
+| input_columns | Comma-delimited list of column indices corresponding to benchmark parameters | N/A |
+| data_columns | Column index corresponding to execution times | N/A |
+| training_set_size | Number of samples to use from specified training set | N/A |
+| test_set_size | Number of samples to use from specified test set | N/A |
+| training_set_split_percentage | Percentage of training-set samples to use for hyper-parameter selection | 0 |
+| mode_range_min | Comma-delimited list of minimum values taken by each benchmark parameter  | N/A |
+| mode_range_max | Comma-delimited list of maximum values taken by each benchmark parameter | N/A |
+| cell_spacing | Comma-delimited list specifying the spacing between grid-points (0: Uniform spacing, 1: Geometric spacing) | N/A |
+| ngrid_pts | Comma-delimited list specifying the number of grid-points (including end-points) along each dimension | N/A |
+| custom_grid_pts | Grid-point locations for any mode in order of modes with cell_spacing=2 | N/A |
+| response_transform | Whether or not to transform execution data (0: No transformation to execution data, 1: Logarithm transformation to execution data) | 1 |
+| interp_map | Comma-delimited list specifying which tensor modes (equivalently grid dimensions) about which to interpolate (0: No interpolation, 1: Interpolate) | N/A |
+| max_num_sweeps | Maximum number of sweeps of alternating minimization methods | 100 |
+| reg | Regularization parameter | 1e-4 |
+| cp_rank | Canonical-Polyadic tensor decomposition rank for use in *interpolation* setting | 3 |
+| build_extrapolation_model | Signifies whether to build a separate model for extrapolation |1 |
+| max_spline_degree | Maximum spline degree for extrapolation model | 3 |
+| sweep_tol | Error tolerance for alternating minimization method | 1e-2|
+| barrier_start | Interior-point method parameter | 1e1 |
+| barrier_stop | Interior-point method parameter | 1e-11 |
+| barrier_reduction_factor | Interior-point method parameter | 8 |
+| tol_newton | Change (in factor matrix) tolerance within Newtons method | 1e-3 |
+| max_num_newton_iter | Maximum number of iterations of Newtons method | 40 |
+| cp_rank_for_extrapolation | Canonical-Polyadic tensor decomposition rank for use in *extrapolation* setting | 1 |
+| print_model_parameters | Whether or not to print the elements of each factor matrix (0: don't print, 1: print) | 0 |
+
  
  Example for a 3-parameter kernel and 3-dimensional tensor:
  ```
-  ibrun -n 1 python cpr.py --test_set_size 1000 --test_set_split_percentage 0.1 --interp_map 1,1,1 --nals_sweeps 100 --reg 1e-5 --response_transform 1 --cp_rank 3 --training_set_size 65536 --training_file 'gemm-train.csv' --test_file 'gemm-test.csv' --output_file 'cpr-results.csv' --input_columns 0,1,2 --data_columns 3 --mode_range_min 32,32,32 --mode_range_max 4096,4096,4096 --cell_spacing 1,1,1 --cell_counts 4,4,4
+python cpr.py --test_set_size 1000 --training_set_split_percentage 0.1 --interp_map 1,1,1 --max_num_sweeps 100 --reg 1e-5 --response_transform 1 --cp_rank 3 --training_set_size 65536 --training_file 'gemm-train.csv' --test_file 'gemm-test.csv' --output_file 'cpr-results.csv' --input_columns 0,1,2 --data_columns 3 --mode_range_min 32,32,32 --mode_range_max 4096,4096,4096 --cell_spacing 1,1,1 --ngrid_pts 4,4,4
  ```
- 
+
  Output data containing loss on training data, error metrics on test data, and model configuration execution times is written to `output_file`.
  All errors (besides `loss`) are with respect to the test set.
  
