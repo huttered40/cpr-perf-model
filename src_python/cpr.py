@@ -48,6 +48,7 @@ if __name__ == "__main__":
     assert(len(cell_spacing)==len(param_list))
     ngrid_pts = [int(n) for n in args.ngrid_pts.split(',')]
     assert(len(ngrid_pts)==len(param_list))
+    custom_grid_pts = [int(n) for n in args.custom_grid_pts.split(',')]
 
     if (args.print_diagnostics == 1):
 	print("Location of training data: %s"%(args.training_file))
@@ -73,7 +74,7 @@ if __name__ == "__main__":
         reg_lambda = model_parameters[0]
         start_time_solve = time.time()
         cpr_mod = cpr_model(cp_rank,args.cp_rank_for_extrapolation,args.loss_function,reg_lambda,args.max_spline_degree,args.interp_map,\
-                    args.response_transform,args.sweep_tol,args.max_num_sweeps,\
+                    args.response_transform,custom_grid_pts,args.sweep_tol,args.max_num_sweeps,\
                     args.tol_newton,args.max_num_newton_iter,args.barrier_start,args.barrier_stop,\
                     args.barrier_reduction_factor,cell_spacing,ngrid_pts,mode_range_min,mode_range_max,
                     args.build_extrapolation_model)

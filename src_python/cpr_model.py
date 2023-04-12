@@ -18,7 +18,7 @@ def get_midpoint(idx, _nodes, spacing_id):
     # idx is assumed to be the leading coordinate of a cell. Therefore, idx+1 is always valid
     if (spacing_id == 0):
         mid = int(_nodes[idx]*1. + (_nodes[idx+1]-_nodes[idx])/2.)
-    elif (spacing_id == 1):
+    elif (spacing_id == 1 or spacing_id == 2):
         scale = _nodes[-1]*1./_nodes[-2]
         mid = int(scale**(np.log(_nodes[idx])/np.log(scale) + ((np.log(_nodes[idx+1])/np.log(scale))-(np.log(_nodes[idx])/np.log(scale)))/2.))
     else:
@@ -70,7 +70,7 @@ def get_node_index(val, _nodes, spacing_id):
             assert(0)
     return start
 
-def generate_nodes(_min,_max,num_grid_pts,spacing_type):
+def generate_nodes(_min,_max,num_grid_pts,spacing_type,custom_grid_pts=[]):
     cell_nodes = []
     if (spacing_type == 0):
         cell_nodes = np.linspace(_min,_max,num_grid_pts)
@@ -78,11 +78,15 @@ def generate_nodes(_min,_max,num_grid_pts,spacing_type):
 	cell_nodes = np.geomspace(_min,_max,num_grid_pts)
         cell_nodes[0]=_min
         cell_nodes[-1]=_max
+    elif (spacing_type == 2):
+	cell_nodes = np.array(custom_grid_pts)
+        cell_nodes[0]=_min
+        cell_nodes[-1]=_max
     return cell_nodes
 
 class cpr_model():
     def __init__(self,cp_rank,cp_rank_for_extrapolation,loss_function,reg,max_spline_degree,interpolation_map,response_transform,\
-                 sweep_tol,max_num_sweeps,tol_newton,max_num_newton_iter,\
+                 custom_grid_pts,sweep_tol,max_num_sweeps,tol_newton,max_num_newton_iter,\
                  barrier_start,barrier_stop,barrier_reduction_factor,cell_spacing,\
                  ngrid_pts,mode_range_min,mode_range_max,build_extrapolation_model):
         self.cp_rank = cp_rank
@@ -91,6 +95,7 @@ class cpr_model():
         self.reg = reg
         self.max_spline_degree = max_spline_degree
         self.response_transform = response_transform
+        self.custom_grid_pts = custom_grid_pts
         self.sweep_tol = sweep_tol
         self.max_num_sweeps = max_num_sweeps
         self.tol_newton = tol_newton
@@ -104,17 +109,23 @@ class cpr_model():
         self.num_grid_pts = 1
 	self.FM1 = []
 	self.FM2 = []
+	self.FM2_sv = []
 	self.extrap_models = []
         self.build_extrapolation_model = build_extrapolation_model
 
         dim = len(cell_spacing)
+        start_grid_idx = 0
 	for i in range(dim):
-	    self.cell_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],cell_spacing[i])))
-            self.num_grid_pts *= len(self.cell_nodes[-1])
+            if (cell_spacing[i] != 2):
+	        self.cell_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],cell_spacing[i])))
+            else:
+	        self.cell_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],cell_spacing[i],self.custom_grid_pts[start_grid_idx:start_grid_idx+ngrid_pts[i]])))
+                start_grid_idx += ngrid_pts[i]
 	    self.contract_str += 'r,'
 	    for j in range(1,len(self.cell_nodes[-1])):
 		if (self.cell_nodes[-1][j] <= self.cell_nodes[-1][j-1]):
 		    self.cell_nodes[-1][j] = self.cell_nodes[-1][j-1] + 1
+            self.num_grid_pts *= len(self.cell_nodes[-1])
 	self.contract_str = self.contract_str[:-1]
 	print("cell_nodes: ", self.cell_nodes)
 	#print("contract_str: ", self.contract_str)
@@ -222,15 +233,43 @@ class cpr_model():
                 scale = la.norm(self.FM2[-1][:,0],2)
 	        self.FM2[-1] /= scale
                 """
+            for i in range(len(self.FM2)):
+                U,S,VT = la.svd(self.FM2[i])
+                self.FM2_sv.append((U[:,0],S[0],VT[0,:]))
+                # Identify Perron vector: simply flip signs if necessary
+                for j in range(len(self.FM2[i][:,0])):
+                    if (self.FM2_sv[-1][0][j]<0):
+                        self.FM2_sv[-1][0][j] *= (-1)
+                for j in range(len(self.FM2[i][0,:])):
+                    if (self.FM2_sv[-1][2][j]<0):
+                        self.FM2_sv[-1][2][j] *= (-1)
 	    for i in range(len(self.tensor_mode_lengths)):	# One cannot simply extrapolate only certain modes.
-		self.extrap_models.append([])
-		for j in range(len(self.FM2[i][0,:])):
-	            self.extrap_models[-1].append(pe.Earth(max_degree=self.max_spline_degree,allow_linear=False))
-              	    self.extrap_models[-1][-1].fit(np.log(self.cell_nodes[i].reshape(-1,1)),np.log(self.FM2[i][:,j]))
+	        self.extrap_models.append(pe.Earth(max_terms=10,max_degree=self.max_spline_degree,allow_linear=True))
+              	self.extrap_models[-1].fit(np.log(self.cell_nodes[i].reshape(-1,1)),np.log(self.FM2_sv[i][0]))
             if (self.loss_function == 1):
                 self.FM1 = self.FM2	# Copy here so that in predict(...), the FM2 factor matrices are used.
         else:
             loss2 = 0
+
+        """
+        ## Addition
+	if (len(self.interp_modes)>0 and self.build_extrapolation_model==1):
+	    # For Debugging Gemm
+	    for i in range(32,4096+1):
+		print("%f,%f"%(i,self.FM2_sv[0][1]*self.FM2_sv[0][2][0]*np.exp(1)**self.extrap_models[0].predict([np.log(i)])[0]))
+	    for i in range(32,4096+1):
+		print("%f,%f"%(i,self.FM2_sv[1][1]*self.FM2_sv[1][2][0]*np.exp(1)**self.extrap_models[1].predict([np.log(i)])[0]))
+	    for i in range(32,4096+1):
+		print("%f,%f"%(i,self.FM2_sv[2][1]*self.FM2_sv[2][2][0]*np.exp(1)**self.extrap_models[2].predict([np.log(i)])[0]))
+	    # For Debugging Bcast
+	    for i in range(len(self.cell_nodes[0])):
+		print("%f,%f,%f"%(self.cell_nodes[0][i],self.FM2[0][i,0],self.FM2_sv[0][1]*self.FM2_sv[0][2][0]*np.exp(1)**self.extrap_models[0].predict([np.log(self.cell_nodes[0][i])])[0]))
+	    for i in range(len(self.cell_nodes[1])):
+		print("%f,%f,%f"%(self.cell_nodes[1][i],self.FM2[1][i,0],self.FM2_sv[1][1]*self.FM2_sv[1][2][0]*np.exp(1)**self.extrap_models[1].predict([np.log(self.cell_nodes[1][i])])[0]))
+	    for i in range(len(self.cell_nodes[2])):
+		print("%f,%f,%f"%(self.cell_nodes[2][i],self.FM2[2][i,0],self.FM2_sv[2][1]*self.FM2_sv[2][2][0]*np.exp(1)**self.extrap_models[2].predict([np.log(self.cell_nodes[2][i])])[0]))
+        """
+
         return (self.num_grid_pts,density,loss1,loss2)
 
     def predict(self,input_tuple):
@@ -329,7 +368,7 @@ class cpr_model():
                     if (self.interp_map[l]==1):
                         if (local_interp_map[l]==0):
 			    factor_matrix_contribution = 0
-			    factor_matrix_contribution += np.exp(1)**self.extrap_models[l][lll].predict([np.log(input_tuple[l])])[0]
+			    factor_matrix_contribution += np.exp(1)**self.extrap_models[l].predict([np.log(input_tuple[l])])[0]*self.FM2_sv[l][1]*self.FM2_sv[l][2][lll]
                         else:
                             factor_matrix_contribution = self.FM2[l][node[l],lll] + (input_tuple[l]-self.cell_nodes[l][node[l]]) * (self.FM2[l][node[l]+1,lll] - self.FM2[l][node[l],lll])\
                                      /(self.cell_nodes[l][node[l]+1]-self.cell_nodes[l][node[l]])
@@ -342,9 +381,8 @@ class cpr_model():
     def print_parameters(self):
         print("Extrapolation model")
         if (self.build_extrapolation_model):
-            for i in range(len(self.FM2[0][0,:])):
-                for j in range(len(self.FM2)):
-                    print(self.extrap_models[j][i].summary())
+            for i in range(len(self.FM2)):
+                print(self.extrap_models[i].summary())
         normalization_factors = [1]*len(self.FM1[0][0,:])
         for i in range(len(self.FM1[0][0,:])):
             for j in range(len(self.FM1)):

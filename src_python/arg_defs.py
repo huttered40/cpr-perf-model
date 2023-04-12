@@ -25,6 +25,12 @@ def add_general_arguments(parser):
         metavar='str',
         help='ID for discretization granularity of kernel configuration space (default: 2).')
     parser.add_argument(
+        '--custom_grid_pts',
+        type=str,
+        default='0',
+        metavar='str',
+        help='Grid-point locations for any mode in order of modes with cell_spacing=2 (default: 0).')
+    parser.add_argument(
         '--cell_spacing',
         type=str,
         default="1",
