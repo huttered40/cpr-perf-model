@@ -3,7 +3,7 @@
 Welcome!
 
 This repository hosts a software framework for high-dimensional performance modeling via tensor completion.
-See our preprint for experimental studies: https://arxiv.org/abs/2210.10184
+See our preprint for experimental studies: [https://arxiv.org/abs/2210.10184]
 
 This Python (v2.7) framework configures canonical-polyadic (CP) tensor decomposition models from provided performance data and
 leverages high-performance tensor computation software publically available within the Cyclops Tensor Framework.
@@ -106,3 +106,11 @@ python cpr.py --test_set_size 1000 --training_set_split_percentage 0.1 --interp_
 | smape |symmetric mean absolute percentage error |
 | tensor_gen_time | time to generate tensor from data |
 | model_config_time | time to configure model |
+
+
+## Reproducibility
+To facilitate reproducibility of the experimental results in our paper [https://arxiv.org/abs/2210.10184], we have curated the scripts necessary to generate all results.
+Unless stated otherwise, we used Python v2.7 to generate all results except for sparse grid regression, for which we used Python v3.
+Note that the subdirectory names match the corresponding figure in the paper.
+
+Please replace all training and test files specified in these scripts with those found at [https://github.com/huttered40/app_ed]. Read the corresponding README for the exact file names.
