@@ -2,7 +2,7 @@
 
 Welcome!
 
-This repository hosts a software framework for high-dimensional performance modeling via tensor completion.
+This repository hosts a software framework for multi-parameter performance modeling via tensor completion.
 See our preprint for experimental studies: [https://arxiv.org/abs/2210.10184]
 
 This Python (v2.7) framework configures canonical-polyadic (CP) tensor decomposition models from provided performance data and
