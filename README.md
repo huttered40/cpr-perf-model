@@ -5,8 +5,7 @@ Welcome!
 This repository hosts a software framework for multi-parameter performance modeling via tensor completion.
 See our preprint for experimental studies: [https://arxiv.org/abs/2210.10184]
 
-This Python (v2.7) framework configures canonical-polyadic (CP) tensor decomposition models from provided performance data and
-leverages high-performance tensor computation software publically available within the Cyclops Tensor Framework.
+This Python (v2.7) framework leverages high-performance tensor computation software (publically available within the Cyclops Tensor Framework) to optimize canonical-polyadic tensor decomposition models from provided runtime data.
 
 ## Build and Use
 Clone `https://github.com/navjo2323/ctf` and update `PYTHONPATH` to reference the `lib_python` subdirectory within the cloned directory.
