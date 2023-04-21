@@ -77,3 +77,4 @@ for fig in [8]:
                 for method in [mars,mlp,gb,rf,et,knn,svm,gp,cpr]:
                     execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{experiment}/
 ```
+Each script writes to a distinct file, which must then be parsed (e.g., via gnuplot) to reproduce the figure.
