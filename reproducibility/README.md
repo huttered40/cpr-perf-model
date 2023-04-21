@@ -2,6 +2,19 @@
 
 We provide scripts to evaluate ten performance modeling methods and to reproduce each figure provided in [https://arxiv.org/abs/2210.10184].
 
+## Figures
+**Figure 3**: Relative Prediction Error vs. Parameter Space Discretization Granularity for Piecewise/Grid-based Models
+
+**Figure 4**: Relative Prediction Error vs. Model Refinement Stategy for Piecewise/Grid-based Models
+
+**Figure 5**: Relative Prediction Error vs. Training set size for cpr-perf-model
+
+**Figure 6**: Relative Prediction Error vs. Training set size for All Models
+
+**Figure 7**: Relative Prediction Error vs. Model Size for All Models
+
+**Figure 8**: Relative Prediction Error vs. Training Set Domain for All Models
+
 ## Methods
 The modeling methods (and corresponding hyper-parameters) we evaluate include the following:
 1. Multivariate Adaptive Regression Splines (mars) [https://contrib.scikit-learn.org/py-earth/content.html#multivariate-adaptive-regression-splines]
