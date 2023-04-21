@@ -63,16 +63,17 @@ The following loop structure explains this file directory:
 for fig in [3,4,5,6,7]:
     for benchmark in [geqrf,gemm,bcast,exafmm,amg,kripke]:
         for method in [mars,sgr,mlp,gb,rf,et,knn,svm,gp,cpr]:
-            Execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/
+            if (cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{method}.sh exists):
+                execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/
 
 for fig in [8]:
     for benchmark in [gemm,bcast]:
         if ({benchmark} == gemm):
             for experiment in [vary_m,vary_mnk]:
                 for method in [mars,mlp,gb,rf,et,knn,svm,gp,cpr]:
-                    Execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{experiment}/
+                    execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{experiment}/
         else:
             for experiment in [vary_message_size,vary_node_count]:
                 for method in [mars,mlp,gb,rf,et,knn,svm,gp,cpr]:
-                    Execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{experiment}/
+                    execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{experiment}/
 ```
