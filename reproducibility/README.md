@@ -4,32 +4,32 @@ We provide scripts to evaluate ten performance modeling methods and to reproduce
 
 ## Methods
 The modeling methods (and corresponding hyper-parameters) we evaluate include the following:
-1. Multivariate Adaptive Regression Splines [https://contrib.scikit-learn.org/py-earth/content.html#multivariate-adaptive-regression-splines]
+1. Multivariate Adaptive Regression Splines (mars) [https://contrib.scikit-learn.org/py-earth/content.html#multivariate-adaptive-regression-splines]
     - maximum spline degree
-2. Sparse Grid Regression [https://sgpp.sparsegrids.org]
+2. Sparse Grid Regression (sgr) [https://sgpp.sparsegrids.org]
     - sparse grid level
     - number of local grid refinements
     - number of adaptive grid-points added per local refinement
-3. Multilayer perceptron [https://scikit-learn.org/stable/modules/generated/sklearn.neural_network.MLPRegressor.html]
+3. Multilayer perceptron (mlp) [https://scikit-learn.org/stable/modules/generated/sklearn.neural_network.MLPRegressor.html]
     - number of layers
     - layer size
     - activation function
-4. Gradient Boosting [https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.GradientBoostingRegressor.html]
+4. Gradient Boosting (gb) [https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.GradientBoostingRegressor.html]
     - number of regression trees
     - maximum depth per regression tree
-5. Random Forest Regression [https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html]
+5. Random Forest Regression (rf) [https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html]
     - number of regression trees
     - maximum depth per regression tree
-6. Extremely Randomized Tree Regression [https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.ExtraTreesRegressor.html]
+6. Extremely Randomized Tree Regression (et) [https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.ExtraTreesRegressor.html]
     - number of regression trees
     - maximum depth per regression tree
-7. k-Nearest Neighbors [https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsRegressor.html]
+7. k-Nearest Neighbors (knn) [https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsRegressor.html]
     - number of neighbors
-8. Support Vector Machines [https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVR.html]
+8. Support Vector Regression (svm) [https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVR.html]
     - kernel
-9. Gaussian Process Regression [https://scikit-learn.org/stable/modules/generated/sklearn.gaussian_process.GaussianProcessRegressor.html]
+9. Gaussian Process Regression (gp) [https://scikit-learn.org/stable/modules/generated/sklearn.gaussian_process.GaussianProcessRegressor.html]
     - kernel
-10. Canonical-Polyadic Decomposition of Regular Grids (our proposed method)
+10. Canonical-Polyadic Decomposition of Regular Grids (cpr, our proposed method)
     - CP rank
     - number of grid-points placed along the ranges of each benchmark parameter
 
@@ -60,8 +60,19 @@ See the corresponding README [https://github.com/huttered40/app_ed] for descript
 The following loop structure explains this file directory:
 
 ```
-for fig in [3,4,5,6,7,8]:
+for fig in [3,4,5,6,7]:
     for benchmark in [geqrf,gemm,bcast,exafmm,amg,kripke]:
         for method in [mars,sgr,mlp,gb,rf,et,knn,svm,gp,cpr]:
             Execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/
+
+for fig in [8]:
+    for benchmark in [gemm,bcast]:
+        if ({benchmark} == gemm):
+            for experiment in [vary_m,vary_mnk]:
+                for method in [mars,mlp,gb,rf,et,knn,svm,gp,cpr]:
+                    Execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{experiment}/
+        else:
+            for experiment in [vary_message_size,vary_node_count]:
+                for method in [mars,mlp,gb,rf,et,knn,svm,gp,cpr]:
+                    Execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/{experiment}/
 ```
