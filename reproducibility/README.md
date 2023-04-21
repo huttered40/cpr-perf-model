@@ -55,3 +55,13 @@ These programs are invoked within these scripts.
 We provide the datasets we utilize here: [https://github.com/huttered40/app_ed/tree/main/datasets/stampede2].
 Users must change the scripts to specify the correct path to each dataset and program.
 See the corresponding README [https://github.com/huttered40/app_ed] for descriptions of each application or kernel benchmark parameter.
+
+## Navigation of these scripts
+The following loop structure explains this file directory:
+
+```
+for fig in [3,4,5,6,7,8]:
+    for benchmark in [geqrf,gemm,bcast,exafmm,amg,kripke]:
+        for method in [mars,sgr,mlp,gb,rf,et,knn,svm,gp,cpr]:
+            Execute {method}.sh in directory cpr-perf-model/reproducibility/figure_{fig}/{benchmark}/
+```
