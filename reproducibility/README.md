@@ -1,3 +1,5 @@
+# Reproducibility Initiative
+
 We provide scripts to evaluate ten performance modeling methods and to reproduce each figure provided in [https://arxiv.org/abs/2210.10184].
 
 ## Methods
@@ -31,7 +33,7 @@ The modeling methods (and corresponding hyper-parameters) we evaluate include th
     - CP rank
     - number of grid-points placed along the ranges of each benchmark parameter
 
-For specifics regarding the specific values per hyper-parameter that we evaluate, since the linked paper.
+For specifics regarding the specific values per hyper-parameter that we evaluate, since the linked paper [https://arxiv.org/abs/2210.10184].
 
 The external libraries we use to evaluate the methods listed above include:
 1. PyEarch (version 0.1.0)
@@ -50,6 +52,6 @@ The external libraries we use to evaluate the methods listed above include:
 We provide Python programs to quickly evaluate each method (assuming the aforementioned dependencies are installed locally) here: [https://github.com/huttered40/cpr-perf-model/tree/main/src_python/alternative_models]
 These programs are invoked within these scripts.
 
-We provide the datafiles we utilize here: [https://github.com/huttered40/app_ed/tree/main/datasets/stampede2].
+We provide the datasets we utilize here: [https://github.com/huttered40/app_ed/tree/main/datasets/stampede2].
 Users must change the scripts to specify the correct path to each dataset and program.
 See the corresponding README [https://github.com/huttered40/app_ed] for descriptions of each application or kernel benchmark parameter.
