@@ -1,6 +1,5 @@
 import os, time, sys, copy
 import numpy as np
-import numpy.linalg as la
 import pandas as pd
 import argparse
 import arg_defs as arg_defs

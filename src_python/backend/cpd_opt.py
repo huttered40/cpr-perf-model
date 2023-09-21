@@ -11,21 +11,21 @@ import random
 def normalize(X):
     # Re-normalize by iterating over each column of each factor matrix
     order = len(X)
-    temp = X[0].to_nparray()	# choice of index 0 is arbitrary
+    temp = X[0].to_nparray()    # choice of index 0 is arbitrary
     rank = len(temp[0,:])
     for j in range(rank):
-	weight = 1
-	# Iterate over the j'th column of all d factor matrices
-	for k in range(order):
+        weight = 1
+        # Iterate over the j'th column of all d factor matrices
+        for k in range(order):
             temp = X[k].to_nparray()	# choice of index 0 is arbitrary
-	    nrm = la.norm(temp[:,j])
-	    weight *= nrm
+            nrm = la.norm(temp[:,j])
+            weight *= nrm
             temp[:,j] /= nrm
             X[k] = ctf.from_nparray(temp)
-	weight = weight**(1./order)
-	for k in range(order):
-            temp = X[k].to_nparray()	# choice of index 0 is arbitrary
-	    temp[:,j] *= weight
+        weight = weight**(1./order)
+        for k in range(order):
+            temp = X[k].to_nparray()        # choice of index 0 is arbitrary
+            temp[:,j] *= weight
             X[k] = ctf.from_nparray(temp)
     return X
 
@@ -171,56 +171,56 @@ class MLogQ2():
             # Optimize factor matrix i by solving each row's nonlinear loss via multiple steps of Newtons method.
             while (mu >= barrier_stop):
                 t=0
-	        prev_step_nrm = np.inf
-		while (t<self.max_newton_iterations):
-		    t += 1
-		    [g,m] = self.Get_RHS(i,regu,mu)
-		    grad_nrm = self.tenpy.vecnorm(g)
+                prev_step_nrm = np.inf
+                while (t<self.max_newton_iterations):
+                    t += 1
+                    [g,m] = self.Get_RHS(i,regu,mu)
+                    grad_nrm = self.tenpy.vecnorm(g)
 
-		    if self.tenpy.name() == "numpy": 
-			delta = self.tenpy.Solve_Factor(m,lst_mat,g,i,0,regu,mu)
-		    else:
-			self.tenpy.Solve_Factor(m,lst_mat,g,i,0,regu,mu)
-			delta = lst_mat[i]
-		    step_nrm = self.tenpy.vecnorm(delta)/self.tenpy.vecnorm(self.A[i])
-		    """
-		    if (step_nrm > 10*prev_step_nrm):
-			print("Break early due to large step: %f,%f"%(prev_step_nrm,step_nrm))
-			break
-		    """
-		    prev_step_nrm = step_nrm
-		    # Verify that following update of factor matrix, every element is positive.
+                    if self.tenpy.name() == "numpy": 
+                        delta = self.tenpy.Solve_Factor(m,lst_mat,g,i,0,regu,mu)
+                    else:
+                        self.tenpy.Solve_Factor(m,lst_mat,g,i,0,regu,mu)
+                        delta = lst_mat[i]
+                    step_nrm = self.tenpy.vecnorm(delta)/self.tenpy.vecnorm(self.A[i])
+                    """
+                    if (step_nrm > 10*prev_step_nrm):
+                        print("Break early due to large step: %f,%f"%(prev_step_nrm,step_nrm))
+                        break
+                    """
+                    prev_step_nrm = step_nrm
+                    # Verify that following update of factor matrix, every element is positive.
 
-		    temp_update = self.A[i] - delta
+                    temp_update = self.A[i] - delta
 
-		    [inds,data] = temp_update.read_local()
-		    data[data<=0]=1e-6	# hacky reset
-		    self.A[i].write(inds,data)
-		    lst_mat[i] = self.A[i].copy()
-		    """
-		    while (np.any(data<=0)):
-			print("barrier val - ", mu)
-			print("newton iter - ", t)
-			print("updated factor matrix data - ", data)
-			assert(0)
-			[delta_inds,delta_data] = delta.read_local()
-			delta_data /= 2
-			delta.write(delta_inds,delta_data)
-			temp_update = self.A[i] - delta
-			[inds,data] = temp_update.read_local()
-			#data[data<=0]=1e-6	# hacky reset
-			#print("Neg values!")
-			#self.A[i].write(inds,data)
-			#break
-		    #else:
-		    """
+                    [inds,data] = temp_update.read_local()
+                    data[data<=0]=1e-6        # hacky reset
+                    self.A[i].write(inds,data)
+                    lst_mat[i] = self.A[i].copy()
+                    """
+                    while (np.any(data<=0)):
+                        print("barrier val - ", mu)
+                        print("newton iter - ", t)
+                        print("updated factor matrix data - ", data)
+                        assert(0)
+                        [delta_inds,delta_data] = delta.read_local()
+                        delta_data /= 2
+                        delta.write(delta_inds,delta_data)
+                        temp_update = self.A[i] - delta
+                        [inds,data] = temp_update.read_local()
+                        #data[data<=0]=1e-6        # hacky reset
+                        #print("Neg values!")
+                        #self.A[i].write(inds,data)
+                        #break
+                    #else:
+                    """
                     #print(i,ii,mu,step_nrm)
-		    if (step_nrm <= self.tol or converge_count == self.A[i].shape[0]):
-			break
-		mu /= barrier_reduction_factor
-		#print("Newton iteration %d: step_nrm - "%(t), step_nrm)
-		#self.A[i] -= delta 
-		newton_count += t
+                    if (step_nrm <= self.tol or converge_count == self.A[i].shape[0]):
+                        break
+                mu /= barrier_reduction_factor
+                #print("Newton iteration %d: step_nrm - "%(t), step_nrm)
+                #self.A[i] -= delta 
+                newton_count += t
         return self.A,newton_count
 
 
@@ -242,7 +242,7 @@ class MLogQAbs():
         [inds,data] = M.read_local_nnz()
         new_data = -1./data
         M_reciprocal1.write(inds,new_data)
-        new_data2 = 1./(data**2)			# Confirmed sign is correct
+        new_data2 = 1./(data**2)                        # Confirmed sign is correct
         M_reciprocal2.write(inds,new_data2)
         # Confirmed that swapping the negatives between new_data and new_data2 fails.
 
@@ -280,7 +280,7 @@ class MLogQAbs():
             converge_list = np.ones(self.A[i].shape[0])
             converge_count = 0
             # Optimize factor matrix i by solving each row's nonlinear loss via multiple steps of Newtons method.
-	    prev_step_nrm = np.inf
+            prev_step_nrm = np.inf
             t=0
             while (t<self.max_newton_iterations):
                 t += 1
@@ -295,27 +295,27 @@ class MLogQAbs():
                 step_nrm = self.tenpy.vecnorm(delta)/self.tenpy.vecnorm(self.A[i])
                 """
                 if (step_nrm > 10*prev_step_nrm):
-		    print("Break early due to large step: %f,%f"%(prev_step_nrm,step_nrm))
+                    print("Break early due to large step: %f,%f"%(prev_step_nrm,step_nrm))
                     break
                 """
-		prev_step_nrm = step_nrm
-		# Verify that following update of factor matrix, every element is positive.
+                prev_step_nrm = step_nrm
+                # Verify that following update of factor matrix, every element is positive.
 
                 temp_update = self.A[i] - delta
 
                 [inds,data] = temp_update.read_local()
                 while (np.any(data<=0)):
-		    print("barrier val - ", mu)
+                    print("barrier val - ", mu)
                     print("newton iter - ", t)
                     print("updated factor matrix data - ", data)
                     assert(0)
                     [delta_inds,delta_data] = delta.read_local()
-		    delta_data /= 2
+                    delta_data /= 2
                     delta.write(delta_inds,delta_data)
                     temp_update = self.A[i] - delta
                     [inds,data] = temp_update.read_local()
-                    #data[data<=0]=1e-6	# hacky reset
-		    #print("Neg values!")
+                    #data[data<=0]=1e-6        # hacky reset
+                    #print("Neg values!")
                     #self.A[i].write(inds,data)
                     #break
                 #else:
@@ -346,8 +346,8 @@ class MSE():
 
         self.tenpy.MTTKRP(self.T,lst_mat,num)
         # Notice that grad should be negative, but it is not!
-	# 	This is taken into account when we subtract the step from the FM in 'step(..)'
-	# Notice: no factors of 2. These are divided away automatically, as both the loss, regularization terms, etc. have them.
+        #         This is taken into account when we subtract the step from the FM in 'step(..)'
+        # Notice: no factors of 2. These are divided away automatically, as both the loss, regularization terms, etc. have them.
         grad = lst_mat[num] - reg*self.A[num]
         return grad
 
@@ -378,8 +378,8 @@ class MSE():
 ###############################################################################3
 """
 2 Methods:
-	1. Alternating Least-Squares (ALS)
-	2. Alternating Minimization via Newtons Method (AMN)
+        1. Alternating Least-Squares (ALS)
+        2. Alternating Minimization via Newtons Method (AMN)
 """
 
 
@@ -459,7 +459,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
         P = M.copy()
         if error_metric == "MLogQ2" or error_metric == "MLogQAbs":
             ctf.Sparse_log(P)
-	else:
+        else:
             assert(0)
         if tenpy.name() =='ctf':
             ctf.Sparse_add(P,TT,alpha=-1)
@@ -469,7 +469,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
             err = tenpy.vecnorm(P)**2/nnz
         elif error_metric == "MLogQAbs":
             err = tenpy.abs_sum(P)/nnz
-	else:
+        else:
             assert(0)
         reg_loss = 0
         for j in range(len(X)):

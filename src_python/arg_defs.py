@@ -97,6 +97,12 @@ def add_general_arguments(parser):
         metavar='float',
         help='Divisor for coefficient on barrier terms for subsequent sweeps of Alternating Minimization via Newtons method (default: 1.25).')
     parser.add_argument(
+        '--projection_set_size_threshold',
+        type=str,
+        default='8',
+        metavar='str',
+        help='Comma-delimited list of minimum number of observations per hyperplane per tensor mode for which to construct model from (default: 8).')
+    parser.add_argument(
         '--tol_newton',
         type=float,
         default='1e-3',

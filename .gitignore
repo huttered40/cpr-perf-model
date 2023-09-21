@@ -9,8 +9,8 @@ __pycache__/
 *.o
 *.e
 *.csv
-*.sh
 *.txt
+*.joblib
 *.DS_Store
 
 # Distribution / packaging
