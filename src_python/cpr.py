@@ -73,7 +73,7 @@ if __name__ == "__main__":
                     reg_lambda,args.max_spline_degree,\
                     args.response_transform,custom_grid_pts,args.sweep_tol,args.max_num_sweeps,\
                     args.tol_newton,args.max_num_newton_iter,args.barrier_start,args.barrier_stop,\
-                    args.barrier_reduction_factor,[int(n) for n in args.projection_set_size_threshold.split(',')],args.build_extrapolation_model)
+                    args.barrier_reduction_factor,[int(n) for n in args.projection_set_size_threshold.split(',')] if len(args.projection_set_size_threshold)>0 else [],args.build_extrapolation_model)
         num_tensor_elements,density,loss1,loss2 = cpr_mod.fit(training_configurations,training_data)
         timers[0] += (time.time()-start_time_solve)
         model_predictions = []

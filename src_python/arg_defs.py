@@ -99,7 +99,7 @@ def add_general_arguments(parser):
     parser.add_argument(
         '--projection_set_size_threshold',
         type=str,
-        default='8',
+        default='',
         metavar='str',
         help='Comma-delimited list of minimum number of observations per hyperplane per tensor mode for which to construct model from (default: 8).')
     parser.add_argument(
