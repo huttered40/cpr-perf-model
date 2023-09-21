@@ -16,12 +16,7 @@ def generate_models(_nneighbors):
         model_list.append([i])
     return model_list
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    arg_defs.add_general_arguments(parser)
-    args, _ = parser.parse_known_args()
-
+def main(args):
     timers = [0.]*3
     training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
     test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
@@ -32,7 +27,7 @@ if __name__ == "__main__":
     nneighbors=[int(n) for n in args.nneighbors.split(',')]
     model_list = generate_models(nneighbors)
 
-    if (args.print_diagnostics == 1):
+    if (args.verbose == 1):
 	print("Location of training data: %s"%(args.training_file))
 	print("Location of test data: %s"%(args.test_file))
 	print("Location of output data: %s"%(args.output_file))
@@ -90,3 +85,16 @@ if __name__ == "__main__":
         model_predictions.append(inverse_transform_response(args.response_transform,KNN_Model.predict([configuration])[0]))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform,training_data),model_predictions,0)
     write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[opt_model_parameters[0]],["model:num_neighbors"])    
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    arg_defs.add_general_arguments(parser)
+    parser.add_argument(
+        '--nneighbors',
+        type=str,
+        default="5",
+        metavar='str',
+        help='Comma-delimited list representing number of neighbors (default: 5).')
+    args, _ = parser.parse_known_args()
+    main(args)

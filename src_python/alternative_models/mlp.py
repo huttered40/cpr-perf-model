@@ -10,12 +10,7 @@ sys.path.insert(0,'%s/../'%(os.getcwd()))
 from util import extract_datasets, get_error_metrics,write_statistics_to_file,get_model_size,\
                  transform_dataset, transform_predictor, transform_response, inverse_transform_response
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    arg_defs.add_general_arguments(parser)
-    args, _ = parser.parse_known_args()
-
+def main(args):
     timers = [0.]*3
     training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
     test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
@@ -26,7 +21,7 @@ if __name__ == "__main__":
     hidden_layer_sizes = [int(n) for n in args.hidden_layer_sizes.split(',')]
     model_list = [hidden_layer_sizes]
 
-    if (args.print_diagnostics == 1):
+    if (args.verbose == 1):
 	print("Location of training data: %s"%(args.training_file))
 	print("Location of test data: %s"%(args.test_file))
 	print("Location of output data: %s"%(args.output_file))
@@ -84,3 +79,28 @@ if __name__ == "__main__":
         model_predictions.append(inverse_transform_response(args.response_transform,NN_Model.predict([configuration])[0]))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform,training_data),model_predictions,0)
     write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[args.hidden_layer_sizes],["model:hidden_layer_sizes"])    
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    arg_defs.add_general_arguments(parser)
+    parser.add_argument(
+        '--hidden-layer-sizes',
+        type=str,
+        default='64,64',
+        metavar='str',
+        help='Comma-delimited list signifying the number of units in each layer of a MLP (default: 64,64).')
+    parser.add_argument(
+        '--activation',
+        type=str,
+        default='relu',
+        metavar='str',
+        help='Activation function for a MLP (default: relu).')
+    parser.add_argument(
+        '--solver',
+        type=str,
+        default='adam',
+        metavar='str',
+        help='Solver for optimizing a MLP (default: adam)')
+    args, _ = parser.parse_known_args()
+    main(args)

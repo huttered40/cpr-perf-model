@@ -29,12 +29,7 @@ def generate_prediction(_model_coeffs,_input_tuple):
     k=_input_tuple[2]*1
     return _model_coeffs[0]*i*j*k + _model_coeffs[1]*(i*j + i*k + j*k) + _model_coeffs[2]
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    arg_defs.add_general_arguments(parser)
-    args, _ = parser.parse_known_args()
-
+def main(args):
     timers = [0.]*3
     training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
     test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
@@ -43,7 +38,7 @@ if __name__ == "__main__":
 
     predictor_transform=[int(n) for n in args.predictor_transform.split(',')]
 
-    if (args.print_diagnostics == 1):
+    if (args.verbose == 1):
 	print("Location of training data: %s"%(args.training_file))
 	print("Location of test data: %s"%(args.test_file))
 	print("Location of output data: %s"%(args.output_file))
@@ -92,3 +87,10 @@ if __name__ == "__main__":
         model_predictions.append(inverse_transform_response(args.response_transform,generate_prediction(model_coeffs,configuration)))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform,training_data),model_predictions,0)
     write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[],[])
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    arg_defs.add_general_arguments(parser)
+    args, _ = parser.parse_known_args()
+    main(args)

@@ -36,12 +36,7 @@ def generate_models(_nlevels,_nadapt_points,_reg):
                 model_list.append([i,j,k])
     return model_list
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    arg_defs.add_general_arguments(parser)
-    args, _ = parser.parse_known_args()
-
+def main(args):
     timers = [0.]*3
     training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
     test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
@@ -53,7 +48,7 @@ if __name__ == "__main__":
     reg = [float(n) for n in args.reg.split(',')]
     model_list = generate_models(nlevels, nadapt_points, reg)
 
-    if (args.print_diagnostics == 1):
+    if (args.verbose == 1):
         print("Location of training data: %s"%(args.training_file))
         print("Location of test data: %s"%(args.test_file))
         print("Location of output data: %s"%(args.output_file))
@@ -172,3 +167,28 @@ if __name__ == "__main__":
         model_predictions.append(inverse_transform_response(args.response_transform,results[k]))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform,training_data),model_predictions,0)
     write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],numberGridPoints*(training_configurations.shape[1]*4+8),[opt_model_parameters[0],opt_model_parameters[1],opt_model_parameters[2],args.nrefinements,numberGridPoints,numberGridPoints*(training_configurations.shape[1]*4+8)],["model:nlevels","model:nadaptpts","model:reg","model:nrefinements","model:NumberGridPoints","model:analytic_model_size"])    
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    arg_defs.add_general_arguments(parser)
+    parser.add_argument(
+        '--nlevels',
+        type=str,
+        default='3',
+        metavar='str',
+        help='Comma-delimited list of number of sparse grid levels (default: 3).')
+    parser.add_argument(
+        '--nadaptpts',
+        type=str,
+        default='3',
+        metavar='str',
+        help='Comma-delimited list of number of grid-points to update (default: 3).')
+    parser.add_argument(
+        '--nrefinements',
+        type=int,
+        default='5',
+        metavar='int',
+        help='Number of sparse-grid refinements (default: 5).')
+    args, _ = parser.parse_known_args()
+    main(args)
