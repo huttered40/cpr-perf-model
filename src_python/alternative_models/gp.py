@@ -106,7 +106,6 @@ if __name__ == "__main__":
         '--gp-kernel-id',
         type=str,
         default='2',
-        metavar='str',
         help='Gaussian Process kernel (see gp.py) (default: 2).')
     args, _ = parser.parse_known_args()
     main(args)

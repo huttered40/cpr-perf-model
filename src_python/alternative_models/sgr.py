@@ -176,19 +176,16 @@ if __name__ == "__main__":
         '--nlevels',
         type=str,
         default='3',
-        metavar='str',
         help='Comma-delimited list of number of sparse grid levels (default: 3).')
     parser.add_argument(
         '--nadaptpts',
         type=str,
         default='3',
-        metavar='str',
         help='Comma-delimited list of number of grid-points to update (default: 3).')
     parser.add_argument(
         '--nrefinements',
         type=int,
         default='5',
-        metavar='int',
         help='Number of sparse-grid refinements (default: 5).')
     args, _ = parser.parse_known_args()
     main(args)

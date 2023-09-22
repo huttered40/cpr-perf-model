@@ -88,19 +88,16 @@ if __name__ == "__main__":
         '--hidden-layer-sizes',
         type=str,
         default='64,64',
-        metavar='str',
         help='Comma-delimited list signifying the number of units in each layer of a MLP (default: 64,64).')
     parser.add_argument(
         '--activation',
         type=str,
         default='relu',
-        metavar='str',
         help='Activation function for a MLP (default: relu).')
     parser.add_argument(
         '--solver',
         type=str,
         default='adam',
-        metavar='str',
         help='Solver for optimizing a MLP (default: adam)')
     args, _ = parser.parse_known_args()
     main(args)

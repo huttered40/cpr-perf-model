@@ -87,7 +87,7 @@ class cpr_model():
     def __init__(self,ngrid_pts,interpolation_map,cell_spacing,mode_range_min,mode_range_max,\
                  cp_rank=3,cp_rank_for_extrapolation=1,loss_function=0,reg=1e-5,max_spline_degree=3,\
                  response_transform=1,custom_grid_pts=[],sweep_tol=1e-5,max_num_sweeps=50,tol_newton=1e-3,max_num_newton_iter=40,\
-                 barrier_start=1e1,barrier_stop=1e-11,barrier_reduction_factor=8,projection_set_size_threshold_=[],build_extrapolation_model=1,save_dataset=False):
+                 barrier_start=1e1,barrier_stop=1e-11,barrier_reduction_factor=8,projection_set_size_threshold_=[],build_extrapolation_model=True,save_dataset=False):
 
         assert(len(ngrid_pts) == len(interpolation_map))
         assert(len(ngrid_pts) == len(cell_spacing))
@@ -236,7 +236,7 @@ class cpr_model():
             self.FM1.append(FM1[k].to_nparray())
         # Only need to attain extrapolation model if extrapolation is relevant.
         #   NOTE: above statement is no longer true with recent optimizations
-        if (len(self.numerical_modes)>0 or len(self.ordinal_modes)>0 or self.build_extrapolation_model==1):
+        if (len(self.numerical_modes)>0 or len(self.ordinal_modes)>0 or self.build_extrapolation_model):
             # For extrapolation, we minimize MLogQ2
             _T_ = Tsparse.copy()
             # NOTE: I changed self.max_num_sweeps to 5 here, which is often sufficient
@@ -310,11 +310,11 @@ class cpr_model():
             # check if input_tuple[numerical_modes[j]] is outside of the cell_nodes on either side
             left_midpoint = get_midpoint(0, self.cell_nodes[self.numerical_modes[j]], self.cell_spacing[self.numerical_modes[j]])
             right_midpoint = get_midpoint(len(self.cell_nodes[self.numerical_modes[j]])-2, self.cell_nodes[self.numerical_modes[j]], self.cell_spacing[self.numerical_modes[j]])
-            if (input_tuple[self.numerical_modes[j]] < self.cell_nodes[self.numerical_modes[j]][0] and self.build_extrapolation_model == 1):
+            if (input_tuple[self.numerical_modes[j]] < self.cell_nodes[self.numerical_modes[j]][0] and self.build_extrapolation_model):
                 # extrapolation necessary: outside range of bounding box on left
                 decisions[self.numerical_modes[j]]=3
                 is_interpolation = False
-            elif (input_tuple[self.numerical_modes[j]] > self.cell_nodes[self.numerical_modes[j]][-1] and self.build_extrapolation_model == 1):
+            elif (input_tuple[self.numerical_modes[j]] > self.cell_nodes[self.numerical_modes[j]][-1] and self.build_extrapolation_model):
                 # extrapolation necessary: outside range of bounding box on right
                 decisions[self.numerical_modes[j]]=4
                 is_interpolation = False
@@ -345,7 +345,7 @@ class cpr_model():
                     element_index_modes_list[-1].append(node[local_numerical_modes[j]]-(2-1)/2+xx)
                 else:
                     element_index_modes_list[-1].append(node[local_numerical_modes[j]]-2/2+xx)
-        if (is_interpolation == True or self.build_extrapolation_model==0):
+        if (is_interpolation == True or self.build_extrapolation_model==False):
             model_val = 0.
             # Do not consider extrapolation modes
             for j in range(2**len(local_numerical_modes)):

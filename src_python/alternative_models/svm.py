@@ -97,7 +97,6 @@ if __name__ == "__main__":
         '--kernel',
         type=str,
         default='poly',
-        metavar='str',
         help='SVM kernel (see svm.py) (default: poly).')
     args, _ = parser.parse_known_args()
     main(args)

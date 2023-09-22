@@ -26,6 +26,8 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     test_data = test_data[:test_set_size]
 
     # Split training data
+    if (training_set_size <= 0):
+        training_set_size = training_configurations.shape[0]
     split_idx = int(split_percentage * training_set_size)
     training_set_size = min(training_configurations.shape[0]-split_idx,training_set_size)
     validation_set_size = split_idx

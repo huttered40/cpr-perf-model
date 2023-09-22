@@ -94,7 +94,6 @@ if __name__ == "__main__":
         '--nneighbors',
         type=str,
         default="5",
-        metavar='str',
         help='Comma-delimited list representing number of neighbors (default: 5).')
     args, _ = parser.parse_known_args()
     main(args)
