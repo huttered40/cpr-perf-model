@@ -19,8 +19,8 @@ def main(args):
     timers = [0.]*3
     training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
     test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
-    param_list = training_df.columns[[int(n) for n in args.input_columns.split(',')]].tolist()
-    data_list = training_df.columns[[int(n) for n in args.data_columns.split(',')]].tolist()
+    param_list = training_df.columns[args.input_columns].tolist()
+    data_list = training_df.columns[args.data_columns].tolist()
 
     # Generate list of model types parameterized on hyper-parameters
     model_list = generate_models(args.regularization,args.cp_rank)
@@ -31,24 +31,21 @@ def main(args):
       = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,\
           args.test_set_size,args.training_set_split_percentage,args.mode_range_min,args.mode_range_max)
 
-    cell_spacing = [int(n) for n in args.cell_spacing.split(',')]
-    assert(len(cell_spacing)==len(param_list))
-    ngrid_pts = [int(n) for n in args.ngrid_pts.split(',')]
-    assert(len(ngrid_pts)==len(param_list))
-    custom_grid_pts = [int(n) for n in args.custom_grid_pts.split(',')]
+    assert(len(args.parameter_node_spacing_type)==len(param_list))
+    assert(len(args.parameter_node_count)==len(param_list))
 
     if (args.verbose):
         print("Location of training data: %s"%(args.training_file))
         print("Location of test data: %s"%(args.test_file))
         print("Location of output data: %s"%(args.output_file))
-        print("args.input_columns: ",args.input_columns)
-        print("args.data_columns: ",args.data_columns)
-        print("param_list: ", param_list)
+        print("args.input-columns: ",args.input_columns)
+        print("args.data-columns: ",args.data_columns)
+        print("param-list: ", param_list)
         print("regularization coefficient: ",args.regularization)
-        print("cp_rank: ",args.cp_rank)
-        print("model_list: ", model_list)
-        print("cell_spacing: ", cell_spacing)
-        print("ngrid_pts: ", ngrid_pts)
+        print("cp-rank: ",args.cp_rank)
+        print("model-list: ", model_list)
+        print("parameter-node-spacing-type: ", args.parameter_node_spacing_type)
+        print("parameter-node-count: ", args.parameter_node_count)
 
     start_time = time.time()
     opt_model_parameters = [-1,-1]
@@ -60,12 +57,12 @@ def main(args):
         cp_rank = model_parameters[1]
         regularization_lambda = model_parameters[0]
         start_time_solve = time.time()
-        cpr_mod = cpr_model(ngrid_pts,[int(n) for n in args.interp_map.split(',')],cell_spacing,\
-                    mode_range_min,mode_range_max,cp_rank,args.cp_rank_for_extrapolation,args.loss_function,\
+        cpr_mod = cpr_model(args.parameter_node_count,args.parameter_type,args.parameter_node_spacing_type,\
+                    mode_range_min,mode_range_max,cp_rank,args.cp_rank_for_extrapolation_model,args.loss_function,\
                     regularization_lambda,args.max_spline_degree,\
-                    args.response_transform,custom_grid_pts,args.sweep_tol,args.max_num_sweeps,\
-                    args.tol_newton,args.max_num_newton_iter,args.barrier_start,args.barrier_stop,\
-                    args.barrier_reduction_factor,[int(n) for n in args.projection_set_size_threshold.split(',')] if len(args.projection_set_size_threshold)>0 else [],args.build_extrapolation_model)
+                    args.response_transform,args.custom_grid_pts,args.model_convergence_tolerance,args.maximum_num_sweeps,\
+                    args.factor_matrix_convergence_tolerance,args.maximum_num_iterations,args.barrier_start,args.barrier_stop,\
+                    args.barrier_reduction_factor,args.projection_set_size_threshold,args.build_extrapolation_model)
         num_tensor_elements,density,loss1,loss2 = cpr_mod.fit(training_configurations,training_data)
         timers[0] += (time.time()-start_time_solve)
         model_predictions = []
@@ -98,7 +95,7 @@ def main(args):
         configuration = training_configurations[k,:]*1.
         model_predictions.append(opt_model.predict(configuration))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,training_data,model_predictions,0)
-    write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[len(ngrid_pts),'-'.join([str(i) for i in args.ngrid_pts.split(',')]),opt_model_parameters[0],opt_model_parameters[1],opt_model_info[0],opt_model_info[1],opt_model_info[2],opt_model_info[3],args.cp_rank_for_extrapolation,args.loss_function,args.sweep_tol,args.max_num_sweeps,args.tol_newton,args.max_num_newton_iter,args.barrier_start,args.barrier_stop,args.barrier_reduction_factor,'-'.join([str(i) for i in args.projection_set_size_threshold.split(',')])],["model:tensor_dim","model:ngrid_pts","model:regularization","model:cprank","model:ntensor_elems","model:tensor_density","model:loss1","model:loss2","extrap_cp_rank","loss_function","sweep_tol","max_num_sweeps","tol_newton","max_num_newton_iter","barrier_start","barrier_stop","barrier_reduction_factor","projection_set_size_threshold"])
+    write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,validation_set_size,test_set_size],model_size,[len(args.parameter_node_count),'-'.join([str(i) for i in args.parameter_node_count]),opt_model_parameters[0],opt_model_parameters[1],opt_model_info[0],opt_model_info[1],opt_model_info[2],opt_model_info[3],args.cp_rank_for_extrapolation_model,args.loss_function,args.model_convergence_tolerance,args.maximum_num_sweeps,args.factor_matrix_convergence_tolerance,args.maximum_num_iterations,args.barrier_start,args.barrier_stop,args.barrier_reduction_factor,'-'.join([str(i) for i in args.projection_set_size_threshold])],["model:tensor_dim","model:parameter_node_count","model:regularization","model:cprank","model:ntensor_elems","model:tensor_density","model:loss1","model:loss2","extrap_cp_rank","loss_function","model_convergence_tolerance","maximum_num_sweeps","factor_matrix_convergence_tolerance","maximum_num_iterations","barrier_start","barrier_stop","barrier_reduction_factor","projection_set_size_threshold"])
 
 if __name__ == "__main__":
 
@@ -132,6 +129,18 @@ if __name__ == "__main__":
         default=-1,
         help='Number of observations from provided dataset (sampled randomly) used to train model. Negative default value signifies to use provided dataset directly without sampling.')
     parser.add_argument(
+        '-V',
+        '--training-set-split-percentage',
+        type=float,
+        default='0',
+        help='Percentage of the training set used to train model prior to model selection across hyper-parameter space. Remaining samples used as a validation set.')
+    parser.add_argument(
+        '-U',
+        '--test-set-size',
+        type=int,
+        default=-1,
+        help='Number of observations from provided dataset (sampled randomly) used to test the trained model. Negative default value signifies to use provided dataset directly without sampling.')
+    parser.add_argument(
         '-c',
         '--cp-rank',
         type=int,
@@ -162,122 +171,137 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help='File path to output data.')
-
-
     parser.add_argument(
-        '--test-set-size',
+        '-g',
+        '--input-columns',
         type=int,
-        default=0,
-        help='Size of test set (default: 0).')
+        nargs='+',
+        required=True,
+        help='Indices of columns corresponding to each parameter within a configuration for all datasets.')
     parser.add_argument(
-        '--ngrid-pts',
-        type=str,
-        default='2',
-        help='ID for discretization granularity of kernel configuration space (default: 2).')
+        '-d',
+        '--data-columns',
+        type=int,
+        nargs='+',
+        required=True,
+        help='Indices of columns corresponding to execution times of configurations for all datasets.')
     parser.add_argument(
-        '--custom-grid-pts',
-        type=str,
-        default='0',
-        help='Grid-point locations for any mode in order of modes with cell_spacing=2 (default: 0).')
-    parser.add_argument(
-        '--cell-spacing',
-        type=str,
-        default="1",
-        help='ID for placement of grid-points constrained to a particular discretization granularity (not necessarily equivalent to sampling distribution of training dataset (default: 1).')
-    parser.add_argument(
-        '--training-set-split-percentage',
+        '-B',
+        '--model-convergence-tolerance',
         type=float,
-        default='0',
-        help='Percentage of the training set used for model selection across hyper-parameter space (default: 0).')
+        default=1e-5,
+        help='Value of loss function for alternating minimization methods below which optimization of model stops.')
     parser.add_argument(
-        '--max-spline-degree',
-        type=int,
-        default="3",
-        help='Maximum spline degree for extrapolation model (default: 1).')
-    parser.add_argument(
-        '--max-num-sweeps',
-        type=int,
-        default='100',
-        help='Maximum number of sweeps of alternating minimization (default: 20).')
-    parser.add_argument(
-        '--sweep-tol',
+        '-F',
+        '--factor-matrix-convergence-tolerance',
         type=float,
-        default='1e-5',
-        help='Error tolerance for alternating minimization method (default: 1e-3).')
+        default=1e-3,
+        help='Value of relative change in factor matrix update below which optimization of individual factor matrix stops.')
     parser.add_argument(
+        '-C',
         '--barrier-start',
         type=float,
-        default='1e1',
-        help='Coefficient on barrier terms for initial sweep of Alternating Minimization via Newtons method (default: 100).')
+        default=1e1,
+        help='Initial value of coefficient applied to barrier terms of loss function for initial sweep of Alternating Minimization.')
     parser.add_argument(
+        '-D',
         '--barrier-stop',
         type=float,
-        default='1e-11',
-        help='Coefficient on barrier terms for initial sweep of Alternating Minimization via Newtons method (default: 100).')
+        default=1e-11,
+        help='Minimum value of coefficient applied to barrier terms for initial sweep of Alternating Minimization.')
     parser.add_argument(
+        '-G',
         '--barrier-reduction-factor',
         type=float,
-        default='8',
-        help='Divisor for coefficient on barrier terms for subsequent sweeps of Alternating Minimization via Newtons method (default: 1.25).')
+        default=8,
+        help='Value which divides into the coefficient applied to barrier terms for subsequent sweeps of Alternating Minimization.')
     parser.add_argument(
-        '--projection-set-size-threshold',
-        type=str,
-        default='',
-        help='Comma-delimited list of minimum number of observations per hyperplane per tensor mode for which to construct model from (default: 8).')
+        '-H',
+        '--maximum-num-sweeps',
+        type=int,
+        default=100,
+        help='Maximum number of sweeps of alternating minimization to optimize model.')
     parser.add_argument(
-        '--tol-newton',
+        '-I',
+        '--maximum-num-iterations',
+        type=int,
+        default=40,
+        help='Maximum number of iterations of Newtons method to optimize a factor matrix.')
+    parser.add_argument(
+        '-Q',
+        '--cp-rank-for-extrapolation-model',
+        type=int,
+        default=1,
+        help='Canonical-Polyadic tensor decomposition rank for .. do this depending on loss, not for .')
+    parser.add_argument(
+        '-Y',
+        '--print-model-parameters',
+        action='store_true',
+        help='Print factor matrix elements.')
+    parser.add_argument(
+        '-Z',
+        '--print-test-error',
+        action='store_true',
+        help='Print error of model applied to provided test dataset.')
+    parser.add_argument(
+        '-M',
+        '--mode-range-min',
         type=float,
-        default='1e-3',
-        help='Change (in factor matrix) tolerance within Newtons method (default: 1e-3).')
+        nargs='+',
+        default=[],
+        help='Minimum range for each parameter')
     parser.add_argument(
-        '--max-num-newton-iter',
-        type=int,
-        default='40',
-        help='Maximum number of iterations of Newtons method (default: 40)')
+        '-N',
+        '--mode-range-max',
+        type=float,
+        nargs='+',
+        default=[],
+        help='Maximum range for each parameter.')
     parser.add_argument(
-        '--cp-rank-for-extrapolation',
-        type=int,
-        default="1",
-        help='Canonical-Polyadic tensor decomposition rank for use in extrapolation (default: 1).')
-    parser.add_argument(
+        '-L',
         '--loss-function',
         type=int,
-        default="0",
-        help='Loss function to optimize CPD Model for interpolation environment.')
-    parser.add_argument(
-        '--interp-map',
-        type=str,
-        default='',
-        help='Comma-delimited list signifying which parameter ranges to interpolate (default: ).')
-    parser.add_argument(
-        '--input-columns',
-        type=str,
-        default='',
-        help='Comma-delimited list of column indices corresponding to each parameter witin a configuration for both training and test datasets.')
-    parser.add_argument(
-        '--data-columns',
-        type=str,
-        default='',
-        help='Comma-delimited list of column indices corresponding to response (execution time) within training and test datasets (same format assumed for both).')
-    parser.add_argument(
-        '--mode-range-min',
-        type=str,
-        default='',
-        help='Comma-delimited list of minimum values for each parameter within a configuration.')
-    parser.add_argument(
-        '--mode-range-max',
-        type=str,
-        default='',
-        help='Comma-delimited list of maximum values for each parameter within a configuration.')
-    parser.add_argument(
-        '--print-model-parameters',
-        type=int,
         default=0,
-        help='Whether or not to print the factor matrix elements (default: 0).')
+        help='Loss function to optimize model using provided dataset.')
     parser.add_argument(
-        '--print-test-error',
+        '-K',
+        '--parameter-node-count',
         type=int,
-        default="0",
-        help='')
+        nargs='+',
+        required=True,
+        help="Number of nodes placed along each parameter's range.")
+    parser.add_argument(
+        '-O',
+        '--parameter-node-spacing-type',
+        type=int,
+        nargs='+',
+        required=True,
+        help='Signify the equidistant placement of nodes for each parameter on linear scale (0) or logarithmic scale (1).')
+    parser.add_argument(
+        '-S',
+        '--parameter-type',
+        type=int,
+        nargs='+',
+        required=True,
+        help='Signify each parameter as categorical (0), numerical (1), or ordinal (2).')
+    parser.add_argument(
+        '-J',
+        '--max-spline-degree',
+        type=int,
+        default=3,
+        help='Maximum spline degree used for extrapolation model.')
+    parser.add_argument(
+        '--custom-grid-pts',
+        type=float,
+        nargs='+',
+        default=[],
+        help='Node locations for any parameters with parameter-type=2 (specified in corresponding order).')
+    parser.add_argument(
+        '--projection-set-size-threshold',
+        type=int,
+        nargs='+',
+        default=[],
+        help="Minimum number of observations per hyperplane per parameter's corresponding tensor mode from which to construct model.")
+
     args, _ = parser.parse_known_args()
     main(args)

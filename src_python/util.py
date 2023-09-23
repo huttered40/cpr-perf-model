@@ -21,7 +21,7 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     training_data = training_df[data_list].values.reshape(-1)[x_train]
 
     # Final selection of test set
-    test_set_size = min(test_set_size,test_configurations.shape[0])
+    test_set_size = min(test_set_size,test_configurations.shape[0]) if test_set_size > 0 else test_configurations.shape[0]
     test_configurations = test_configurations[:test_set_size,:]
     test_data = test_data[:test_set_size]
 
@@ -59,13 +59,13 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     training_configurations = training_configurations.astype(np.float64)
     mode_range_min = [0]*len(param_list)
     mode_range_max = [0]*len(param_list)
-    if (user_specified_mode_range_min == '' or user_specified_mode_range_max == ''):
+    if (user_specified_mode_range_min == [] or user_specified_mode_range_max == []):
         for i in range(training_configurations.shape[1]):
             mode_range_min[i] = np.amin(training_configurations[:,i])
             mode_range_max[i] = np.amax(training_configurations[:,i])
     else:
-        mode_range_min = [float(n) for n in user_specified_mode_range_min.split(',')]
-        mode_range_max = [float(n) for n in user_specified_mode_range_max.split(',')]
+        mode_range_min = [float(n) for n in user_specified_mode_range_min]
+        mode_range_max = [float(n) for n in user_specified_mode_range_max]
     if (print_diagnostics == 1):
         print("mode_range_min: ",mode_range_min)
         print("mode_range_max: ",mode_range_max)
@@ -89,6 +89,7 @@ NOTE: Eight aggregate error metrics are calculated (both mean and standard devia
       7. mean absolute error
 """
 def get_error_metrics(set_size,configurations,data,model_predictions,print_errors=0):
+    print("here")
     error_metrics = [0]*16
     if (set_size == 0):
         return error_metrics

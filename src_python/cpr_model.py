@@ -86,7 +86,7 @@ def generate_nodes(_min,_max,num_grid_pts,spacing_type,custom_grid_pts=[]):
 class cpr_model():
     def __init__(self,ngrid_pts,interpolation_map,cell_spacing,mode_range_min,mode_range_max,\
                  cp_rank=3,cp_rank_for_extrapolation=1,loss_function=0,reg=1e-5,max_spline_degree=3,\
-                 response_transform=1,custom_grid_pts=[],sweep_tol=1e-5,max_num_sweeps=50,tol_newton=1e-3,max_num_newton_iter=40,\
+                 response_transform=1,custom_grid_pts=[],model_convergence_tolerance=1e-5,maximum_num_sweeps=50,factor_matrix_convergence_tolerance=1e-3,maximum_num_iterations=40,\
                  barrier_start=1e1,barrier_stop=1e-11,barrier_reduction_factor=8,projection_set_size_threshold_=[],build_extrapolation_model=True,save_dataset=False):
 
         assert(len(ngrid_pts) == len(interpolation_map))
@@ -101,10 +101,10 @@ class cpr_model():
         self.max_spline_degree = max_spline_degree
         self.response_transform = response_transform
         self.custom_grid_pts = list(custom_grid_pts)
-        self.sweep_tol = sweep_tol
-        self.max_num_sweeps = max_num_sweeps
-        self.tol_newton = tol_newton
-        self.max_num_newton_iter = max_num_newton_iter
+        self.model_convergence_tolerance = model_convergence_tolerance
+        self.maximum_num_sweeps = maximum_num_sweeps
+        self.factor_matrix_convergence_tolerance = factor_matrix_convergence_tolerance
+        self.maximum_num_iterations = maximum_num_iterations
         self.barrier_start = barrier_start
         self.barrier_stop = barrier_stop
         self.barrier_reduction_factor = barrier_reduction_factor
@@ -230,7 +230,7 @@ class cpr_model():
         else:
             assert(0)
         FM1,loss1,num_sweeps1 = cpd_als("MSE", tenpy, _T_,
-                                     omega, FM1, self.reg, self.sweep_tol, self.max_num_sweeps)
+                                     omega, FM1, self.reg, self.model_convergence_tolerance, self.maximum_num_sweeps)
         num_newton_iter1 = 0
         for k in range(len(self.tensor_mode_lengths)):
             self.FM1.append(FM1[k].to_nparray())
@@ -239,11 +239,11 @@ class cpr_model():
         if (len(self.numerical_modes)>0 or len(self.ordinal_modes)>0 or self.build_extrapolation_model):
             # For extrapolation, we minimize MLogQ2
             _T_ = Tsparse.copy()
-            # NOTE: I changed self.max_num_sweeps to 5 here, which is often sufficient
+            # NOTE: I changed self.maximum_num_sweeps to 5 here, which is often sufficient
             FM2,loss2,num_sweeps2,num_newton_iter2 =  cpd_amn("MLogQ2",\
               tenpy, _T_, omega, FM2, self.reg,\
-              self.sweep_tol,5, self.tol_newton,\
-              self.max_num_newton_iter, self.barrier_start,self.barrier_stop,self.barrier_reduction_factor)
+              self.model_convergence_tolerance,5, self.factor_matrix_convergence_tolerance,\
+              self.maximum_num_iterations, self.barrier_start,self.barrier_stop,self.barrier_reduction_factor)
             for k in range(len(self.tensor_mode_lengths)):
                 self.FM2.append(FM2[k].to_nparray())
                 """

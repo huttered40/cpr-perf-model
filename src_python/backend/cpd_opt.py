@@ -115,12 +115,12 @@ def elementwise_log(T):
 
 class MLogQ2():
     #Current implementation is using \lambda  = e^m and replacing it in the function to get: e^m - xm
-    def __init__(self,tenpy, T, Omega, A, tol, num_newton_iterations):
+    def __init__(self,tenpy, T, Omega, A, convergence_tolerance, num_newton_iterations):
         self.tenpy = tenpy
         self.T = T
         self.Omega = Omega
         self.A = A
-        self.tol = tol
+        self.convergence_tolerance = convergence_tolerance
         self.max_newton_iterations = num_newton_iterations
 
     def Get_RHS(self,num,regu,mu):
@@ -215,7 +215,7 @@ class MLogQ2():
                     #else:
                     """
                     #print(i,ii,mu,step_nrm)
-                    if (step_nrm <= self.tol or converge_count == self.A[i].shape[0]):
+                    if (step_nrm <= self.convergence_tolerance or converge_count == self.A[i].shape[0]):
                         break
                 mu /= barrier_reduction_factor
                 #print("Newton iteration %d: step_nrm - "%(t), step_nrm)
@@ -225,12 +225,12 @@ class MLogQ2():
 
 
 class MLogQAbs():
-    def __init__(self,tenpy, T, Omega, A, tol, num_newton_iterations):
+    def __init__(self,tenpy, T, Omega, A, convergence_tolerance, num_newton_iterations):
         self.tenpy = tenpy
         self.T = T
         self.Omega = Omega
         self.A = A
-        self.tol = tol
+        self.convergence_tolerance = convergence_tolerance
         self.max_newton_iterations = num_newton_iterations
 
     def Get_RHS(self,num,regu,mu):
@@ -323,7 +323,7 @@ class MLogQAbs():
                 print("Newton iteration %d: step_nrm - "%(t), step_nrm)
                 self.A[i] -= delta 
                 lst_mat[i] = self.A[i].copy()
-                if (step_nrm <= self.tol or converge_count == self.A[i].shape[0]):
+                if (step_nrm <= self.convergence_tolerance or converge_count == self.A[i].shape[0]):
                     break
             newton_count += t
         return self.A,newton_count
@@ -383,7 +383,7 @@ class MSE():
 """
 
 
-def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
+def cpd_als(error_metric, tenpy, T_in, O, X, reg,model_convergence_tolerance,max_nsweeps):
     assert(error_metric == "MSE")
     # X - model parameters, framed as a guess
     # O - sparsity pattern encoded as a sparse matrix
@@ -418,7 +418,7 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
         #print("(Loss,Regularization component of objective,Objective) at AMN sweep %d: %f,%f,%f)"%(nsweeps,err,reg_loss,err+reg_loss))
         print("%d,%f,%f,%f)"%(i,err,reg_loss,err+reg_loss))
  
-        if err < tol:
+        if err < model_convergence_tolerance:
             break
 
         # Update model parameters X, one step at a time
@@ -427,13 +427,13 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,tol,max_nsweeps):
     return (X,err,i)
 
 
-def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
-            max_nsweeps, tol_newton, max_newton_iter, barrier_start, barrier_stop, barrier_reduction_factor):
+def cpd_amn(error_metric,tenpy, T_in, O, X, reg, model_convergence_tolerance,\
+            max_nsweeps, factor_matrix_convergence_tolerance, max_newton_iter, barrier_start, barrier_stop, barrier_reduction_factor):
     # Establish solver
     if (error_metric == "MLogQ2"):
-        opt = MLogQ2(tenpy, T_in, O, X, tol_newton, max_newton_iter)
+        opt = MLogQ2(tenpy, T_in, O, X, factor_matrix_convergence_tolerance, max_newton_iter)
     elif (error_metric == "MLogQAbs"):
-        opt = MLogQAbs(tenpy, T_in, O, X, tol_newton, max_newton_iter)
+        opt = MLogQAbs(tenpy, T_in, O, X, factor_matrix_convergence_tolerance, max_newton_iter)
     else:
         assert(0)
 
@@ -483,7 +483,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, tol,\
             for j in range(len(X)):
                 X[j] = X_prev[j].copy()
             break
-        if (i>0 and abs(err)<tol):
+        if (i>0 and abs(err)<model_convergence_tolerance):
             break
         P.set_zero()
         M.set_zero()
