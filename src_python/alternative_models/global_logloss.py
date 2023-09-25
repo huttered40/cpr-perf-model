@@ -4,11 +4,11 @@ import numpy as np
 def residuals(_model_coeffs, _responses, _features):
     _res = np.zeros((len(_responses),))
     for zz in range(len(_responses)):
-	m = _features[zz,0]
-	n = _features[zz,1]
-	k = _features[zz,2]
-	#_res[zz] = np.log(_responses[zz]) - np.log(_model_coeffs[0]*(i+_model_coeffs[1])*(j+_model_coeffs[2])*(k+_model_coeffs[3])+_model_coeffs[4] - _model_coeffs[0]*(i*1./_model_coeffs[1]+j*1./_model_coeffs[2]+k*1./_model_coeffs[3]+1)*_model_coeffs[1]*_model_coeffs[2]*_model_coeffs[3])
-	_res[zz] = np.log(_responses[zz]) - np.log(_model_coeffs[0]*m*n*k + _model_coeffs[1]*(m*n + m*k + n*k + m*n*k/1000) + _model_coeffs[2])
+        m = _features[zz,0]
+        n = _features[zz,1]
+        k = _features[zz,2]
+        #_res[zz] = np.log(_responses[zz]) - np.log(_model_coeffs[0]*(i+_model_coeffs[1])*(j+_model_coeffs[2])*(k+_model_coeffs[3])+_model_coeffs[4] - _model_coeffs[0]*(i*1./_model_coeffs[1]+j*1./_model_coeffs[2]+k*1./_model_coeffs[3]+1)*_model_coeffs[1]*_model_coeffs[2]*_model_coeffs[3])
+        _res[zz] = np.log(_responses[zz]) - np.log(_model_coeffs[0]*m*n*k + _model_coeffs[1]*(m*n + m*k + n*k + m*n*k/1000) + _model_coeffs[2])
     return _res
 
 def generate_prediction(_model_coeffs,_input_tuple):

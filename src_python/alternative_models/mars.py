@@ -29,7 +29,7 @@ def main(args):
     mars_model.fit(training_configurations,training_data)
     timers[0] += (time.time()-start_time_solve)
     if (args.print_model_parameters == 1):
-	print(mars_model.summary())
+        print(mars_model.summary())
     timers[1] += (time.time()-start_time)
 
     model_size = get_model_size(mars_model,"MARS_Model.joblib")
@@ -38,7 +38,7 @@ def main(args):
     model_predictions = []
     for k in range(test_set_size):
         configuration = transform_predictor(args.predictor_transform_type,test_configurations[k,:]*1.)
-	model_predictions.append(inverse_transform_response(args.response_transform_type,mars_model.predict([configuration])[0]))
+        model_predictions.append(inverse_transform_response(args.response_transform_type,mars_model.predict([configuration])[0]))
     timers[2] += (time.time()-start_time)
     test_error_metrics = get_error_metrics(test_set_size,test_configurations,test_data,model_predictions,args.print_test_error)
 

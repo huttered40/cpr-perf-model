@@ -6,7 +6,7 @@ import random as rand
 import pandas as pd
 import arg_defs as arg_defs
 
-import pyearth as pe	#NOTE: Invalid for Python3
+import pyearth as pe  #NOTE: Invalid for Python3
 
 import backend.ctf_ext as tenpy
 from backend.cpd_opt import cpd_als,cpd_amn

@@ -26,11 +26,11 @@ def main(args):
     start_time = time.time()
     start_time_solve = time.time()
     cpr_mod = cpr_model(args.parameter_node_count,args.parameter_type,args.parameter_node_spacing_type,\
-		mode_range_min,mode_range_max,args.cp_rank,args.cp_rank_for_extrapolation_model,args.loss_function,\
-		args.regularization,args.max_spline_degree,\
-		args.response_transform_type,args.custom_grid_pts,args.model_convergence_tolerance,args.maximum_num_sweeps,\
-		args.factor_matrix_convergence_tolerance,args.maximum_num_iterations,args.barrier_start,args.barrier_stop,\
-		args.barrier_reduction_factor,args.projection_set_size_threshold,args.build_extrapolation_model)
+                mode_range_min,mode_range_max,args.cp_rank,args.cp_rank_for_extrapolation_model,args.loss_function,\
+                args.regularization,args.max_spline_degree,\
+                args.response_transform_type,args.custom_grid_pts,args.model_convergence_tolerance,args.maximum_num_sweeps,\
+                args.factor_matrix_convergence_tolerance,args.maximum_num_iterations,args.barrier_start,args.barrier_stop,\
+                args.barrier_reduction_factor,args.projection_set_size_threshold,args.build_extrapolation_model)
     print(training_configurations)
     print(training_data)
     num_tensor_elements,density,loss1,loss2 = cpr_mod.fit(training_configurations,training_data)

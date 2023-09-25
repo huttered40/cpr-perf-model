@@ -17,7 +17,7 @@ def normalize(X):
         weight = 1
         # Iterate over the j'th column of all d factor matrices
         for k in range(order):
-            temp = X[k].to_nparray()	# choice of index 0 is arbitrary
+            temp = X[k].to_nparray()  # choice of index 0 is arbitrary
             nrm = la.norm(temp[:,j])
             weight *= nrm
             temp[:,j] /= nrm
@@ -132,7 +132,7 @@ class MLogQ2():
         [inds,data] = M.read_local_nnz()
         new_data = -1./data
         M_reciprocal1.write(inds,new_data)
-        new_data2 = 1./(data**2)			# Confirmed sign is correct
+        new_data2 = 1./(data**2)  # Confirmed sign is correct
         M_reciprocal2.write(inds,new_data2)
         # Confirmed that swapping the negatives between new_data and new_data2 fails.
 

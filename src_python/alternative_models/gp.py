@@ -26,17 +26,17 @@ def main(args):
 
     start_time = time.time()
     if (args.gp_kernel_id == 0):
-	gp_model = GaussianProcessRegressor(kernel=ConstantKernel(1.0, constant_value_bounds="fixed") * RBF(1.0, length_scale_bounds="fixed"))
+        gp_model = GaussianProcessRegressor(kernel=ConstantKernel(1.0, constant_value_bounds="fixed") * RBF(1.0, length_scale_bounds="fixed"))
     elif (args.gp_kernel_id == 1):
-	gp_model = GaussianProcessRegressor(kernel=DotProduct() + WhiteKernel())
+        gp_model = GaussianProcessRegressor(kernel=DotProduct() + WhiteKernel())
     elif (args.gp_kernel_id == 2):
-	gp_model = GaussianProcessRegressor(kernel=Matern())
+        gp_model = GaussianProcessRegressor(kernel=Matern())
     elif (args.gp_kernel_id == 3):
-	gp_model = GaussianProcessRegressor(kernel=RationalQuadratic())
+        gp_model = GaussianProcessRegressor(kernel=RationalQuadratic())
     elif (args.gp_kernel_id == 4):
-	gp_model = GaussianProcessRegressor(kernel=DotProduct())
+        gp_model = GaussianProcessRegressor(kernel=DotProduct())
     elif (args.gp_kernel_id == 5):
-	gp_model = GaussianProcessRegressor(kernel=RBF())
+        gp_model = GaussianProcessRegressor(kernel=RBF())
     start_time_solve = time.time()
     gp_model.fit(training_configurations,training_data)
     timers[0] += (time.time()-start_time_solve)
