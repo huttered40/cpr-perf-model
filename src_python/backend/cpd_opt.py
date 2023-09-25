@@ -202,7 +202,7 @@ class MLogQ2():
                         print("barrier val - ", mu)
                         print("newton iter - ", t)
                         print("updated factor matrix data - ", data)
-                        assert(0)
+                        raise AssertionError("Invalid")
                         [delta_inds,delta_data] = delta.read_local()
                         delta_data /= 2
                         delta.write(delta_inds,delta_data)
@@ -308,7 +308,7 @@ class MLogQAbs():
                     print("barrier val - ", mu)
                     print("newton iter - ", t)
                     print("updated factor matrix data - ", data)
-                    assert(0)
+                    raise AssertionError("Invalid")
                     [delta_inds,delta_data] = delta.read_local()
                     delta_data /= 2
                     delta.write(delta_inds,delta_data)
@@ -384,7 +384,8 @@ class MSE():
 
 
 def cpd_als(error_metric, tenpy, T_in, O, X, reg,model_convergence_tolerance,max_nsweeps):
-    assert(error_metric == "MSE")
+    if (error_metric != "MSE"):
+        raise AssertionError("Invalid error metric")
     # X - model parameters, framed as a guess
     # O - sparsity pattern encoded as a sparse matrix
     # T_in - sparse tensor of data
@@ -435,7 +436,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, model_convergence_tolerance,\
     elif (error_metric == "MLogQAbs"):
         opt = MLogQAbs(tenpy, T_in, O, X, factor_matrix_convergence_tolerance, max_newton_iter)
     else:
-        assert(0)
+        raise AssertionError("Invalid")
 
     if tenpy.name() == 'ctf':
         nnz = len(O.read_local_nnz()[0])
@@ -460,7 +461,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, model_convergence_tolerance,\
         if error_metric == "MLogQ2" or error_metric == "MLogQAbs":
             ctf.Sparse_log(P)
         else:
-            assert(0)
+            raise AssertionError("Invalid")
         if tenpy.name() =='ctf':
             ctf.Sparse_add(P,TT,alpha=-1)
         else:
@@ -470,7 +471,7 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, model_convergence_tolerance,\
         elif error_metric == "MLogQAbs":
             err = tenpy.abs_sum(P)/nnz
         else:
-            assert(0)
+            raise AssertionError("Invalid")
         reg_loss = 0
         for j in range(len(X)):
             [inds,data] = X[j].read_local_nnz()

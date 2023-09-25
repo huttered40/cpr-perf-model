@@ -62,8 +62,10 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     if (print_diagnostics == 1):
         print("mode_range_min: ",mode_range_min)
         print("mode_range_max: ",mode_range_max)
-    assert(len(mode_range_min)==len(param_list))
-    assert(len(mode_range_max)==len(param_list))
+    if (len(mode_range_min) != len(param_list)):
+            raise AssertionError("Invalid list lengths")
+    if (len(mode_range_max) != len(param_list)):
+            raise AssertionError("Invalid list lengths")
 
     return (training_configurations,training_data,training_set_size,\
             test_configurations,test_data,test_set_size,mode_range_min,mode_range_max\
@@ -136,7 +138,7 @@ def transform_predictor(predictor_transform,configuration):
         if (predictor_transform[i]==1):
             configuration[i] = np.log(configuration[i])
         elif (predictor_transform[i]==2):
-            assert(0)# No need for this, should be done as an entire dataset
+            raise AssertionError("Invalid") # No need for this, should be done as an entire dataset
     return configuration
 
 def transform_response(response_transform,data):

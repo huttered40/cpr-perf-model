@@ -21,7 +21,7 @@ def get_midpoint(idx, _nodes, spacing_id):
         scale = _nodes[-1]*1./_nodes[-2]
         mid = int(scale**(np.log(_nodes[idx])/np.log(scale) + ((np.log(_nodes[idx+1])/np.log(scale))-(np.log(_nodes[idx])/np.log(scale)))/2.))
     else:
-        assert(0)
+        raise AssertionError("Invalid")
     return mid
 
 def get_cell_index(val, _nodes):
@@ -41,7 +41,7 @@ def get_cell_index(val, _nodes):
         elif (val > _nodes[mid]):
             start = mid+1
         else:
-            assert(0)
+            raise AssertionError("Invalid")
     return start
 
 def get_node_index(val, _nodes, spacing_id):
@@ -66,7 +66,7 @@ def get_node_index(val, _nodes, spacing_id):
         elif (val > _nodes[mid]):
             start = mid+1
         else:
-            assert(0)
+            raise AssertionError("Invalid")
     return start
 
 def generate_nodes(_min,_max,num_grid_pts,spacing_type,custom_grid_pts=[]):
@@ -89,10 +89,14 @@ class cpr_model():
                  response_transform=1,custom_grid_pts=[],model_convergence_tolerance=1e-5,maximum_num_sweeps=50,factor_matrix_convergence_tolerance=1e-3,maximum_num_iterations=40,\
                  barrier_start=1e1,barrier_stop=1e-11,barrier_reduction_factor=8,projection_set_size_threshold_=[],build_extrapolation_model=True,save_dataset=False):
 
-        assert(len(ngrid_pts) == len(interpolation_map))
-        assert(len(ngrid_pts) == len(cell_spacing))
-        assert(len(ngrid_pts) == len(mode_range_min))
-        assert(len(ngrid_pts) == len(mode_range_max))
+        if (len(ngrid_pts) != len(interpolation_map)):
+            raise AssertionError("Invalid list lengths")
+        if (len(ngrid_pts) != len(cell_spacing)):
+            raise AssertionError("Invalid list lengths")
+        if (len(ngrid_pts) != len(mode_range_min)):
+            raise AssertionError("Invalid list lengths")
+        if (len(ngrid_pts) != len(mode_range_max)):
+            raise AssertionError("Invalid list lengths")
 
         self.cp_rank = cp_rank
         self.cp_rank_for_extrapolation = cp_rank_for_extrapolation
@@ -228,7 +232,7 @@ class cpr_model():
             data = np.log(data)
             _T_.write(inds,data)
         else:
-            assert(0)
+            raise AssertionError("")
         FM1,loss1,num_sweeps1 = cpd_als("MSE", tenpy, _T_,
                                      omega, FM1, self.reg, self.model_convergence_tolerance, self.maximum_num_sweeps)
         num_newton_iter1 = 0
@@ -389,7 +393,7 @@ class cpr_model():
                     t_val = np.exp(1)**t_val
                     pass
                 else:
-                    assert(0)
+                    raise AssertionError("Invalid")
                 model_val += coeff * t_val
             return model_val
         else:
@@ -432,7 +436,8 @@ class cpr_model():
             config.pop()
 
     def ask(self,n_points=None, batch_size=20):
-        assert(n_points==1)
+        if (n_points != 1):
+            raise AssertionError("Invalid number of points")
         """
         # Initial strategy: search across all elements of tensor
         min_runtime_input = self.ask_per_mode(np.inf,0,[],[])
@@ -453,12 +458,13 @@ class cpr_model():
                     if (row_metric < min_row_metric):
                         min_row_metric = row_metric
                         save_min_row = j
-                assert(save_min_row >= 0)
+                if (save_min_row < 0):
+                    raise AssertionError("Invalid")
                 min_runtime_input.append(self.cell_nodes[i][save_min_row])
             elif (self.interp_map[i]==1):
                 # Can likely just use factor matrix, but not sure how to select the best parameter here
                 # For single-task autotuning, we don't need to do anything here, but for multi-task autotuning this becomes interesting
-                assert(0)
+                raise AssertionError("")
             elif (self.interp_map[i]==2):
                 # For ordinal modes, we must verify to check that the size of the corresponding projection set
                 # is sufficiently large, as this will influence what method is chosen for prediction.
@@ -475,7 +481,8 @@ class cpr_model():
                     if (row_metric < min_row_metric):
                         min_row_metric = row_metric
                         save_min_row = j
-                assert(save_min_row >= 0)
+                if (save_min_row < 0):
+                    raise AssertionError("")
                 min_runtime_input.append(self.cell_nodes[i][save_min_row])
         return min_runtime_input 
 

@@ -20,8 +20,10 @@ def main(args):
       = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,\
           args.test_set_size,args.mode_range_min,args.mode_range_max)
 
-    assert(len(args.parameter_node_spacing_type)==len(param_list))
-    assert(len(args.parameter_node_count)==len(param_list))
+    if (len(args.parameter_node_spacing_type) != len(param_list)):
+        raise AssertionError("Invalid input: parameter_node_spacing_type")
+    if (len(args.parameter_node_count) != len(param_list)):
+        raise AssertionError("Invalid input: parameter_node_count")
 
     start_time = time.time()
     start_time_solve = time.time()
