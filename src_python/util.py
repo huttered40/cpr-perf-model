@@ -5,7 +5,7 @@ import pandas as pd
 import os,joblib
 
 def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,\
-      test_set_size,split_percentage,user_specified_mode_range_min,user_specified_mode_range_max,print_diagnostics=0):
+      test_set_size,user_specified_mode_range_min,user_specified_mode_range_max,print_diagnostics=0):
     # NOTE: assumption that training/test files follow same format
     # Randomize test set
     np.random.seed(10)
@@ -28,13 +28,11 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     # Split training data
     if (training_set_size <= 0):
         training_set_size = training_configurations.shape[0]
-    split_idx = int(split_percentage * training_set_size)
-    training_set_size = min(training_configurations.shape[0]-split_idx,training_set_size)
-    validation_set_size = split_idx
+    training_set_size = min(training_configurations.shape[0],training_set_size)
 
     # Final selection of training set
-    training_configurations = training_configurations[split_idx:(training_set_size+split_idx),:]
-    training_data = training_data[split_idx:(training_set_size+split_idx)]
+    training_configurations = training_configurations[:training_set_size,:]
+    training_data = training_data[:training_set_size]
 
     # Find maximum and minimum training execution times
     min_time = np.amin(training_data)
@@ -42,13 +40,8 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     print("Min time - ", min_time)
     print("Max time - ", max_time)
 
-    # Final selection of validation set
-    validation_configurations = training_configurations[:split_idx]
-    validation_data = training_data[:split_idx]
-
     if (print_diagnostics == 1):
         print("Training set size: %d"%(training_set_size))
-        print("Validation set size: %d"%(validation_set_size))
         print("Test set size: %d"%(test_set_size))
         print("training_configurations: ", training_configurations)
         print("training_data: ", training_data)
@@ -73,7 +66,6 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     assert(len(mode_range_max)==len(param_list))
 
     return (training_configurations,training_data,training_set_size,\
-            validation_configurations,validation_data,validation_set_size,\
             test_configurations,test_data,test_set_size,mode_range_min,mode_range_max\
            )
 
@@ -89,7 +81,6 @@ NOTE: Eight aggregate error metrics are calculated (both mean and standard devia
       7. mean absolute error
 """
 def get_error_metrics(set_size,configurations,data,model_predictions,print_errors=0):
-    print("here")
     error_metrics = [0]*16
     if (set_size == 0):
         return error_metrics
@@ -185,7 +176,6 @@ def write_statistics_to_file(output_file,test_error_summary_statistics,training_
         "time:model_configuration",\
         "time:model_eval",\
         "input:training_set_size",\
-        "input:validation_set_size",\
         "input:test_set_size",\
         "model:size"]
     columns += model_info_strings
@@ -210,11 +200,12 @@ def write_statistics_to_file(output_file,test_error_summary_statistics,training_
         columns[17] : timers[1],\
         columns[18] : timers[2],\
         columns[19] : inputs[0],\
-        columns[20] : inputs[1],\
-        columns[21] : inputs[2],\
+        columns[20] : 0,\
+        columns[21] : inputs[1],\
         columns[22] : model_size,\
     }}
+    #NOTE: The zero in columns[20] was formally validation set size, which was removed.
     for i in range(len(model_info)):
-        write_dict[0][columns[23+i]] = model_info[i]
+        write_dict[0][columns[22+i]] = model_info[i]
     results_df = pd.DataFrame(data=write_dict,index=columns).T
     results_df.to_csv("%s"%(output_file),sep=',',header=1,mode="a")
