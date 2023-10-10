@@ -1,10 +1,7 @@
 import numpy as np
-import random as rand
-import scipy.stats as scst
-import pandas as pd
-import os,joblib
 
 def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,\
+    #import random as rand
       test_set_size,user_specified_mode_range_min,user_specified_mode_range_max,print_diagnostics=0):
     # NOTE: assumption that training/test files follow same format
     # Randomize test set
@@ -83,6 +80,7 @@ NOTE: Eight aggregate error metrics are calculated (both mean and standard devia
       7. mean absolute error
 """
 def get_error_metrics(set_size,configurations,data,model_predictions,print_errors=0):
+    import scipy.stats as scst
     error_metrics = [0]*16
     if (set_size == 0):
         return error_metrics
@@ -152,11 +150,13 @@ def inverse_transform_response(response_transform,data):
     return data
 
 def get_model_size(model,model_str):
+    import os,joblib
     joblib.dump(model,model_str) 
     model_size = os.path.getsize(model_str)
     return model_size
 
 def write_statistics_to_file(output_file,test_error_summary_statistics,training_error_summary_statistics,timers,inputs,model_size,model_info,model_info_strings):
+    import pandas as pd
     columns = [\
          "training_error:mlogq",\
          "training_error:mabslogq",\
@@ -175,8 +175,8 @@ def write_statistics_to_file(output_file,test_error_summary_statistics,training_
         "test_error:mse",\
         "test_error:mae",\
         "time:model_fit",\
-        "time:model_configuration",\
-        "time:model_eval",\
+        "time:model_evaluation_test_set",\
+        "time:model_evaluation_training_set",\
         "input:training_set_size",\
         "input:test_set_size",\
         "model:size"]

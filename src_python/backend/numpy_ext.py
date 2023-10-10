@@ -1,6 +1,5 @@
 import numpy as np
 import numpy.linalg as la
-import scipy.linalg as sla
 
 def name():
     return 'numpy'
@@ -32,9 +31,6 @@ def TTTP(T, A):
             A2.append(A[i])
     einstr += T_inds + "->" + T_inds
     A2.append(T)
-    print("Check this - ",einstr)
-    for blah in A2:
-        print(blah.shape)
     return np.einsum(einstr, *A2,optimize=True)
 
 def MTTKRP(T,A,idx):
@@ -159,6 +155,7 @@ def cholesky(A):
     return la.cholesky(A)
 
 def solve_tri(A, B, lower=True, from_left=True, transp_L=False):
+    import scipy.linalg as sla
     if not from_left:
         B = B.T
         A = A.T

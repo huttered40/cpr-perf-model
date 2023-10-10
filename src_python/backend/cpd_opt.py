@@ -1,11 +1,6 @@
- #!/usr/bin/env python3
-
 import numpy as np
 import numpy.linalg as la
-import time
-import csv
 import ctf
-import random
 
 # Normalize each column within a factor matrix
 def normalize(X):
@@ -383,9 +378,9 @@ class MSE():
 """
 
 
-def cpd_als(error_metric, tenpy, T_in, O, X, reg,model_convergence_tolerance,max_nsweeps):
-    if (error_metric != "MSE"):
-        raise AssertionError("Invalid error metric")
+def cpd_als(tenpy, T_in, O, X, reg,model_convergence_tolerance,max_nsweeps,loss_function_metric="MSE"):
+    if (loss_function_metric != "MSE"):
+        raise AssertionError("Invalid loss function")
     # X - model parameters, framed as a guess
     # O - sparsity pattern encoded as a sparse matrix
     # T_in - sparse tensor of data
@@ -428,15 +423,12 @@ def cpd_als(error_metric, tenpy, T_in, O, X, reg,model_convergence_tolerance,max
     return (X,err,i)
 
 
-def cpd_amn(error_metric,tenpy, T_in, O, X, reg, model_convergence_tolerance,\
-            max_nsweeps, factor_matrix_convergence_tolerance, max_newton_iter, barrier_start, barrier_stop, barrier_reduction_factor):
+def cpd_amn(tenpy, T_in, O, X, reg, model_convergence_tolerance,\
+            max_nsweeps, factor_matrix_convergence_tolerance, max_newton_iter, barrier_start, barrier_stop, barrier_reduction_factor, loss_function="MLogQ2"):
     # Establish solver
-    if (error_metric == "MLogQ2"):
-        opt = MLogQ2(tenpy, T_in, O, X, factor_matrix_convergence_tolerance, max_newton_iter)
-    elif (error_metric == "MLogQAbs"):
-        opt = MLogQAbs(tenpy, T_in, O, X, factor_matrix_convergence_tolerance, max_newton_iter)
-    else:
-        raise AssertionError("Invalid")
+    if (loss_function != "MLogQ2"):
+        raise AssertionError("Invalid loss function")
+    opt = MLogQ2(tenpy, T_in, O, X, factor_matrix_convergence_tolerance, max_newton_iter)
 
     if tenpy.name() == 'ctf':
         nnz = len(O.read_local_nnz()[0])
@@ -458,20 +450,12 @@ def cpd_amn(error_metric,tenpy, T_in, O, X, reg, model_convergence_tolerance,\
     for i in range(max_nsweeps):
         M = tenpy.TTTP(O,X)
         P = M.copy()
-        if error_metric == "MLogQ2" or error_metric == "MLogQAbs":
-            ctf.Sparse_log(P)
-        else:
-            raise AssertionError("Invalid")
+        ctf.Sparse_log(P)
         if tenpy.name() =='ctf':
             ctf.Sparse_add(P,TT,alpha=-1)
         else:
             P = TT - P
-        if error_metric == "MLogQ2":
-            err = tenpy.vecnorm(P)**2/nnz
-        elif error_metric == "MLogQAbs":
-            err = tenpy.abs_sum(P)/nnz
-        else:
-            raise AssertionError("Invalid")
+        err = tenpy.vecnorm(P)**2/nnz
         reg_loss = 0
         for j in range(len(X)):
             [inds,data] = X[j].read_local_nnz()

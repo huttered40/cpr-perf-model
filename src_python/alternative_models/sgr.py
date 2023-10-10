@@ -26,16 +26,13 @@ def main(args):
     sys.path.insert(0,'%s/../'%(os.getcwd()))
     from util import extract_datasets, get_error_metrics,write_statistics_to_file,get_model_size, transform_dataset, transform_predictor, transform_response, inverse_transform_response
 
-    timers = [0.]*3
-    training_df = pd.read_csv('%s'%(args.training_file), index_col=0, sep=',')
-    test_df = pd.read_csv('%s'%(args.test_file), index_col=0, sep=',')
+    training_df = pd.read_csv(args.training_file, index_col=0, sep=',')
+    test_df = pd.read_csv(args.test_file, index_col=0, sep=',')
     param_list = training_df.columns[args.input_columns].tolist()
     data_list = training_df.columns[args.data_columns].tolist()
 
-    (training_configurations,training_data,training_set_size,\
-            test_configurations,test_data,test_set_size,mode_range_min,mode_range_max)\
-      = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,\
-          args.test_set_size,args.mode_range_min,args.mode_range_max)
+    (training_configurations,training_data,training_set_size,test_configurations,test_data,test_set_size,mode_range_min,mode_range_max)\
+      = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,args.test_set_size,args.mode_range_min,args.mode_range_max)
     #Normalize the data along each mode so max is 1. No log transformation of predictors necessary.
     save_min_values = [0]*len(param_list)
     save_max_values = [0]*len(param_list)
@@ -48,6 +45,7 @@ def main(args):
         test_configurations[:,i] = test_configurations[:,i]*1. - save_min_values[i]
         test_configurations[:,i] = test_configurations[:,i]*1. / save_max_values[i]
 
+    timers = []
     start_time = time.time()
     builder = LearnerBuilder()
     builder.buildRegressor()
@@ -68,11 +66,10 @@ def main(args):
     builder.withImax(100)    # this impacts accuracy and number of grid-points!
     builder.withTestingDataFromNumPyArray(training_configurations,training_data)
 
-    start_time_solve = time.time()
     # Extract the corresponding learner and learn, using the test data to prevent overfitting
     learner = builder.andGetResult()
     learner.learnDataWithTest()
-    timers[0] += (time.time()-start_time_solve)
+    timers.append(time.time()-start_time)
 
     # do not perform any kind of refinement or writing to file, if the default grid already yields
     # potentially overfitting; this grid will be, nevertheless, saved
@@ -97,26 +94,26 @@ def main(args):
         print("check - ", *gridStorage.getPoint(ii))
     """
 
-    timers[1] += (time.time()-start_time)
-
     #learner object apparently cannot be dumped. Must ascertain size a different way.
     #model_size = get_model_size(learner.grid,"SGR_Model.joblib")
+    numberGridPoints=learner.grid.getSize()
 
     start_time = time.time()
     model_predictions = []
-    numberGridPoints=learner.grid.getSize()
     results = generate_predictions(learner,test_configurations)
     for k in range(test_set_size):
         model_predictions.append(inverse_transform_response(args.response_transform_type,results[k]))
-    timers[2] += (time.time()-start_time)
     test_error_metrics = get_error_metrics(test_set_size,test_configurations,test_data,model_predictions,args.print_test_error)
+    timers.append(time.time()-start_time)
 
+    start_time = time.time()
     model_predictions = []
     results = generate_predictions(learner,training_configurations)
     for k in range(training_set_size):
         configuration = training_configurations[k,:]*1.
         model_predictions.append(inverse_transform_response(args.response_transform_type,results[k]))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform_type,training_data),model_predictions,0)
+    timers.append(time.time()-start_time)
     write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,test_set_size],numberGridPoints*(training_configurations.shape[1]*4+8),[args.nlevels,args.nadaptpts,args.regularization,args.nrefinements,numberGridPoints,numberGridPoints*(training_configurations.shape[1]*4+8)],["model:nlevels","model:nadaptpts","model:reg","model:nrefinements","model:NumberGridPoints","model:analytic_model_size"])    
 
 if __name__ == "__main__":

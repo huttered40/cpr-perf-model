@@ -1,30 +1,18 @@
-import ctf, time, copy, argparse
 import numpy as np
 import numpy.linalg as la
-import scipy.stats as scst
-import random as rand
-import pandas as pd
-import arg_defs as arg_defs
 
-import pyearth as pe  #NOTE: Invalid for Python3
-
-import backend.ctf_ext as tenpy
-from backend.cpd_opt import cpd_als,cpd_amn
-
-glob_comm = ctf.comm()
-
-def get_midpoint(idx, _nodes, spacing_id):
+def get_midpoint_of_two_nodes(idx, _nodes, node_spacing_type):
+    #if (node_spacing_type != 1 and node_spacing_type != 1):
+    #    raise AssertionError("Invalid node spacing type")
     # idx is assumed to be the leading coordinate of a cell. Therefore, idx+1 is always valid
-    if (spacing_id == 0):
+    if (node_spacing_type == 0):
         mid = int(_nodes[idx]*1. + (_nodes[idx+1]-_nodes[idx])/2.)
-    elif (spacing_id == 1 or spacing_id == 2):
+    else:
         scale = _nodes[-1]*1./_nodes[-2]
         mid = int(scale**(np.log(_nodes[idx])/np.log(scale) + ((np.log(_nodes[idx+1])/np.log(scale))-(np.log(_nodes[idx])/np.log(scale)))/2.))
-    else:
-        raise AssertionError("Invalid")
     return mid
 
-def get_cell_index(val, _nodes):
+def get_interval_index(val, _nodes):
     if (val >= _nodes[len(_nodes)-1]):
         return len(_nodes)-2
     # Binary Search
@@ -44,7 +32,7 @@ def get_cell_index(val, _nodes):
             raise AssertionError("Invalid")
     return start
 
-def get_node_index(val, _nodes, spacing_id):
+def get_node_index(val, _nodes, node_spacing_type):
     if (val >= _nodes[len(_nodes)-1]):
         return len(_nodes)-1
     if (val <= _nodes[0]):
@@ -57,7 +45,7 @@ def get_node_index(val, _nodes, spacing_id):
     while (start <= end):
         mid = start + (end-start)//2
         if (val >= _nodes[mid] and val < _nodes[mid+1]):
-            if (val <= get_midpoint(mid,_nodes,spacing_id)):
+            if (val <= get_midpoint_of_two_nodes(mid,_nodes,node_spacing_type)):
                 return mid
             else:
                 return mid+1
@@ -69,39 +57,39 @@ def get_node_index(val, _nodes, spacing_id):
             raise AssertionError("Invalid")
     return start
 
-def generate_nodes(_min,_max,num_grid_pts,spacing_type,custom_grid_pts=[]):
-    cell_nodes = []
-    if (spacing_type == 0):
-        cell_nodes = np.linspace(_min,_max,num_grid_pts)
-    elif (spacing_type == 1):
-        cell_nodes = np.geomspace(_min,_max,num_grid_pts)
-        cell_nodes[0]=_min
-        cell_nodes[-1]=_max
-    elif (spacing_type == 2):
-        cell_nodes = np.array(custom_grid_pts)
-        cell_nodes[0]=_min
-        cell_nodes[-1]=_max
-    return cell_nodes
+def generate_nodes(_min,_max,num_grid_pts,node_spacing_type,custom_grid_pts=[]):
+    #if (node_spacing_type != 1 and node_spacing_type != 1):
+    #    raise AssertionError("Invalid node spacing type")
+    nodes = []
+    if (node_spacing_type == 0):
+        nodes = np.linspace(_min,_max,num_grid_pts)
+    else:
+        nodes = np.geomspace(_min,_max,num_grid_pts)
+        nodes[0]=_min
+        nodes[-1]=_max
+    return nodes
 
 class cpr_model():
-    def __init__(self,ngrid_pts,interpolation_map,cell_spacing,mode_range_min,mode_range_max,\
-                 cp_rank=3,cp_rank_for_extrapolation=1,loss_function=0,reg=1e-5,max_spline_degree=3,\
-                 response_transform=1,custom_grid_pts=[],model_convergence_tolerance=1e-5,maximum_num_sweeps=50,factor_matrix_convergence_tolerance=1e-3,maximum_num_iterations=40,\
-                 barrier_start=1e1,barrier_stop=1e-11,barrier_reduction_factor=8,projection_set_size_threshold_=[],build_extrapolation_model=True,save_dataset=False):
+    def __init__(self,ngrid_pts,interpolation_map,interval_spacing,mode_range_min,mode_range_max,\
+                 cp_rank=[3,1],regularization=[1e-4,1e-4],max_spline_degree=3,\
+                 response_transform=1,custom_grid_pts=[],model_convergence_tolerance=[1e-5,1e-5],maximum_num_sweeps=[100,10],factor_matrix_convergence_tolerance=1e-3,maximum_num_iterations=40,\
+                 barrier_range=[1e-11,1e1],barrier_reduction_factor=8,projection_set_size_threshold_=[],save_dataset=False):
 
         if (len(ngrid_pts) != len(interpolation_map)):
             raise AssertionError("Invalid list lengths")
-        if (len(ngrid_pts) != len(cell_spacing)):
+        if (len(ngrid_pts) != len(interval_spacing)):
             raise AssertionError("Invalid list lengths")
         if (len(ngrid_pts) != len(mode_range_min)):
             raise AssertionError("Invalid list lengths")
         if (len(ngrid_pts) != len(mode_range_max)):
             raise AssertionError("Invalid list lengths")
+        if (len(cp_rank) != 2):
+            raise AssertionError("Must specify two CP ranks")
+        if (len(barrier_range) != 2):
+            raise AssertionError("Must specify the start and stop range of the barrier coefficient")
 
         self.cp_rank = cp_rank
-        self.cp_rank_for_extrapolation = cp_rank_for_extrapolation
-        self.loss_function = loss_function
-        self.reg = reg
+        self.regularization = regularization
         self.max_spline_degree = max_spline_degree
         self.response_transform = response_transform
         self.custom_grid_pts = list(custom_grid_pts)
@@ -109,53 +97,52 @@ class cpr_model():
         self.maximum_num_sweeps = maximum_num_sweeps
         self.factor_matrix_convergence_tolerance = factor_matrix_convergence_tolerance
         self.maximum_num_iterations = maximum_num_iterations
-        self.barrier_start = barrier_start
-        self.barrier_stop = barrier_stop
+        self.barrier_start = barrier_range[1]
+        self.barrier_stop = barrier_range[0]
         self.barrier_reduction_factor = barrier_reduction_factor
-        self.cell_spacing = list(cell_spacing)
-        self.cell_nodes = []
+        self.interval_spacing = list(interval_spacing)
+        self.parameter_nodes = []
         self.contract_str = ''
         self.num_grid_pts = 1
         self.FM1 = []
         self.FM2 = []
         self.FM2_sv = []
         self.extrap_models = []
-        self.build_extrapolation_model = build_extrapolation_model
+        self.build_extrapolation_model = True
         self.save_dataset = save_dataset
         self.yi = []
         self.Xi = []
 
-        dim = len(cell_spacing)
+        dim = len(interval_spacing)
         start_grid_idx = 0
         for i in range(dim):
-            if (cell_spacing[i] != 2):
-                self.cell_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],cell_spacing[i])))
+            if (interval_spacing[i] != 2):
+                self.parameter_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],interval_spacing[i])))
             else:
-                self.cell_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],cell_spacing[i],self.custom_grid_pts[start_grid_idx:start_grid_idx+ngrid_pts[i]])))
+                self.parameter_nodes.append(np.rint(generate_nodes(mode_range_min[i],mode_range_max[i],ngrid_pts[i],interval_spacing[i],self.custom_grid_pts[start_grid_idx:start_grid_idx+ngrid_pts[i]])))
                 start_grid_idx += ngrid_pts[i]
             self.contract_str += 'r,'
-            for j in range(1,len(self.cell_nodes[-1])):
-                if (self.cell_nodes[-1][j] <= self.cell_nodes[-1][j-1]):
-                    self.cell_nodes[-1][j] = self.cell_nodes[-1][j-1] + 1
-            self.num_grid_pts *= len(self.cell_nodes[-1])
+            for j in range(1,len(self.parameter_nodes[-1])):
+                if (self.parameter_nodes[-1][j] <= self.parameter_nodes[-1][j-1]):
+                    self.parameter_nodes[-1][j] = self.parameter_nodes[-1][j-1] + 1
+            self.num_grid_pts *= len(self.parameter_nodes[-1])
         self.contract_str = self.contract_str[:-1]
-        #print("cell_nodes: ", self.cell_nodes)
         #print("contract_str: ", self.contract_str)
 
         """
         NOTE: No benefit in unfolding tensor along certain modes. It just makes the tensor larger
               and thus requiring a larger training set to achieve sufficiently larger projection sets.
-        tensor_map = range(len(cell_nodes))
+        tensor_map = range(len(parameter_nodes))
         if (args.tensor_map != ''):
             tensor_map = [int(n) for n in args.tensor_map.split(',')]
         """
-        self.tensor_mode_lengths = [1]*len(self.cell_nodes)
+        self.tensor_mode_lengths = [1]*len(self.parameter_nodes)
         for i in range(len(self.tensor_mode_lengths)):
-            self.tensor_mode_lengths[i] = len(self.cell_nodes[i])
+            self.tensor_mode_lengths[i] = len(self.parameter_nodes[i])
         self.Projected_Omegas = [[] for i in range(len(self.tensor_mode_lengths))]
 
         self.interp_map = list(interpolation_map)
-        self.projection_set_size_threshold = [8]*len(self.cell_nodes)
+        self.projection_set_size_threshold = [8]*len(self.parameter_nodes)
         if (projection_set_size_threshold_ != []):
             self.projection_set_size_threshold = list(projection_set_size_threshold_)
         self.numerical_modes = []
@@ -170,6 +157,12 @@ class cpr_model():
                 self.categorical_modes.append(i)
 
     def fit(self,inputs,data):
+        import ctf
+        import pyearth as pe  #NOTE: Invalid for Python3
+        import backend.ctf_ext as tenpy
+        from backend.cpd_opt import cpd_als,cpd_amn
+        glob_comm = ctf.comm()
+
         if (self.save_dataset):
             self.Xi = inputs.copy()
             self.yi = data.copy()
@@ -178,10 +171,9 @@ class cpr_model():
 
         # Use dictionaries to save the sizes of Omega_i
         for i in range(len(self.tensor_mode_lengths)):
-            for j in range(len(self.cell_nodes[i])):
+            for j in range(len(self.parameter_nodes[i])):
                 self.Projected_Omegas[i].append(0)
 
-        start_time = time.time()
         nodes = []
         density = 0.
         training_node_list = []
@@ -193,7 +185,7 @@ class cpr_model():
             input_tuple = inputs[i,:]
             node_key = []
             for j in range(len(input_tuple)):
-                node_key.append(get_node_index(input_tuple[j],self.cell_nodes[j],self.cell_spacing[j]))
+                node_key.append(get_node_index(input_tuple[j],self.parameter_nodes[j],self.interval_spacing[j]))
             save_training_nodes.append(node_key)
             if (tuple(node_key) not in node_data_dict):
                 node_count_dict[tuple(node_key)] = 1
@@ -218,8 +210,8 @@ class cpr_model():
         FM1 = []
         FM2 = []
         for k in range(len(self.tensor_mode_lengths)):
-            FM1.append(ctf.tensor((Tsparse.shape[k],self.cp_rank)))
-            FM2.append(ctf.tensor((Tsparse.shape[k],self.cp_rank_for_extrapolation)))
+            FM1.append(ctf.tensor((Tsparse.shape[k],self.cp_rank[0])))
+            FM2.append(ctf.tensor((Tsparse.shape[k],self.cp_rank[1])))
             FM1[-1].fill_random()
             FM2[-1].fill_random(0,.01)
         # Optimize model
@@ -233,8 +225,8 @@ class cpr_model():
             _T_.write(inds,data)
         else:
             raise AssertionError("")
-        FM1,loss1,num_sweeps1 = cpd_als("MSE", tenpy, _T_,
-                                     omega, FM1, self.reg, self.model_convergence_tolerance, self.maximum_num_sweeps)
+        FM1,loss1,num_sweeps1 = cpd_als(tenpy, _T_,
+                                     omega, FM1, self.regularization[0], self.model_convergence_tolerance[0], self.maximum_num_sweeps[0])
         num_newton_iter1 = 0
         for k in range(len(self.tensor_mode_lengths)):
             self.FM1.append(FM1[k].to_nparray())
@@ -244,9 +236,8 @@ class cpr_model():
             # For extrapolation, we minimize MLogQ2
             _T_ = Tsparse.copy()
             # NOTE: I changed self.maximum_num_sweeps to 5 here, which is often sufficient
-            FM2,loss2,num_sweeps2,num_newton_iter2 =  cpd_amn("MLogQ2",\
-              tenpy, _T_, omega, FM2, self.reg,\
-              self.model_convergence_tolerance,5, self.factor_matrix_convergence_tolerance,\
+            FM2,loss2,num_sweeps2,num_newton_iter2 =  cpd_amn(tenpy, _T_, omega, FM2, self.regularization[1],\
+              self.model_convergence_tolerance[1],self.maximum_num_sweeps[1], self.factor_matrix_convergence_tolerance,\
               self.maximum_num_iterations, self.barrier_start,self.barrier_stop,self.barrier_reduction_factor)
             for k in range(len(self.tensor_mode_lengths)):
                 self.FM2.append(FM2[k].to_nparray())
@@ -255,9 +246,9 @@ class cpr_model():
                 scale = la.norm(self.FM2[-1][:,0],2)
                 self.FM2[-1] /= scale
                 """
-            updated_cell_nodes = []
+            updated_parameter_nodes = []
             for i in range(len(self.FM2)):
-                updated_cell_nodes.append([])
+                updated_parameter_nodes.append([])
                 if (self.interp_map[i] == 0):
                     self.FM2_sv.append(())
                     continue
@@ -266,7 +257,7 @@ class cpr_model():
                 for j in range(self.FM2[i].shape[0]):
                     if (self.Projected_Omegas[i][j] >= min(self.projection_set_size_threshold[i],max(self.Projected_Omegas[i]))):
                         local_projected_set_size = local_projected_set_size + 1
-                        updated_cell_nodes[-1].append(self.cell_nodes[i][j])
+                        updated_parameter_nodes[-1].append(self.parameter_nodes[i][j])
                 Factor_Matrix__ = np.zeros(shape=(local_projected_set_size,self.FM2[i].shape[1]))
                 column_count = 0
                 for j in range(self.FM2[i].shape[0]):
@@ -275,7 +266,7 @@ class cpr_model():
                             Factor_Matrix__[column_count,k] = self.FM2[i][j,k]
                         column_count = column_count + 1
                 #U,S,VT = la.svd(self.FM2[i])
-                #print(i,updated_cell_nodes[i],self.Projected_Omegas[i],self.FM2[i],Factor_Matrix__)
+                #print(i,updated_parameter_nodes[i],self.Projected_Omegas[i],self.FM2[i],Factor_Matrix__)
                 U,S,VT = la.svd(Factor_Matrix__)
                 self.FM2_sv.append((U[:,0],S[0],VT[0,:]))
                 # Identify Perron vector: simply flip signs if necessary
@@ -290,11 +281,11 @@ class cpr_model():
                     self.extrap_models.append([])
                     continue
                 self.extrap_models.append(pe.Earth(max_terms=10,max_degree=self.max_spline_degree,allow_linear=True))
-                #self.extrap_models[-1].fit(np.log(self.cell_nodes[i].reshape(-1,1)),np.log(self.FM2_sv[i][0]))
-                print(np.array(updated_cell_nodes[i]).reshape(-1,1),self.FM2_sv[i][0])
-                self.extrap_models[-1].fit(np.log(np.array(updated_cell_nodes[i]).reshape(-1,1)),np.log(self.FM2_sv[i][0]))
-            if (self.loss_function == 1):
-                self.FM1 = self.FM2        # Copy here so that in predict(...), the FM2 factor matrices are used.
+                #self.extrap_models[-1].fit(np.log(self.parameter_nodes[i].reshape(-1,1)),np.log(self.FM2_sv[i][0]))
+                print(np.array(updated_parameter_nodes[i]).reshape(-1,1),self.FM2_sv[i][0])
+                self.extrap_models[-1].fit(np.log(np.array(updated_parameter_nodes[i]).reshape(-1,1)),np.log(self.FM2_sv[i][0]))
+            #if (self.loss_function == 1):
+            #    self.FM1 = self.FM2        # Copy here so that in predict(...), the FM2 factor matrices are used.
         else:
             loss2 = 0
 
@@ -303,7 +294,7 @@ class cpr_model():
     def predict(self,input_tuple):
         node = []
         for j in range(len(input_tuple)):
-            node.append(get_node_index(input_tuple[j],self.cell_nodes[j],self.cell_spacing[j]))
+            node.append(get_node_index(input_tuple[j],self.parameter_nodes[j],self.interval_spacing[j]))
         midpoints = []
         local_numerical_modes = []
         local_interp_map = [0]*len(input_tuple)
@@ -311,14 +302,14 @@ class cpr_model():
         is_interpolation = True
         for j in range(len(self.numerical_modes)):
             #cell_node_idx = numerical_modes[j]
-            # check if input_tuple[numerical_modes[j]] is outside of the cell_nodes on either side
-            left_midpoint = get_midpoint(0, self.cell_nodes[self.numerical_modes[j]], self.cell_spacing[self.numerical_modes[j]])
-            right_midpoint = get_midpoint(len(self.cell_nodes[self.numerical_modes[j]])-2, self.cell_nodes[self.numerical_modes[j]], self.cell_spacing[self.numerical_modes[j]])
-            if (input_tuple[self.numerical_modes[j]] < self.cell_nodes[self.numerical_modes[j]][0] and self.build_extrapolation_model):
+            # check if input_tuple[numerical_modes[j]] is outside of the parameter_nodes on either side
+            left_midpoint = get_midpoint_of_two_nodes(0, self.parameter_nodes[self.numerical_modes[j]], self.interval_spacing[self.numerical_modes[j]])
+            right_midpoint = get_midpoint_of_two_nodes(len(self.parameter_nodes[self.numerical_modes[j]])-2, self.parameter_nodes[self.numerical_modes[j]], self.interval_spacing[self.numerical_modes[j]])
+            if (input_tuple[self.numerical_modes[j]] < self.parameter_nodes[self.numerical_modes[j]][0] and self.build_extrapolation_model):
                 # extrapolation necessary: outside range of bounding box on left
                 decisions[self.numerical_modes[j]]=3
                 is_interpolation = False
-            elif (input_tuple[self.numerical_modes[j]] > self.cell_nodes[self.numerical_modes[j]][-1] and self.build_extrapolation_model):
+            elif (input_tuple[self.numerical_modes[j]] > self.parameter_nodes[self.numerical_modes[j]][-1] and self.build_extrapolation_model):
                 # extrapolation necessary: outside range of bounding box on right
                 decisions[self.numerical_modes[j]]=4
                 is_interpolation = False
@@ -329,7 +320,7 @@ class cpr_model():
                 # extrapolation necessary: inside range of bounding box on right, but right of right-most midpoint
                 decisions[self.numerical_modes[j]]=2
             else:
-                midpoints.append(get_midpoint(get_cell_index(input_tuple[self.numerical_modes[j]],self.cell_nodes[self.numerical_modes[j]]), self.cell_nodes[self.numerical_modes[j]], self.cell_spacing[self.numerical_modes[j]]))
+                midpoints.append(get_midpoint_of_two_nodes(get_interval_index(input_tuple[self.numerical_modes[j]],self.parameter_nodes[self.numerical_modes[j]]), self.parameter_nodes[self.numerical_modes[j]], self.interval_spacing[self.numerical_modes[j]]))
                 local_numerical_modes.append(self.numerical_modes[j])
                 local_interp_map[self.numerical_modes[j]] = 1
                 decisions[self.numerical_modes[j]]=5
@@ -365,8 +356,8 @@ class cpr_model():
                     cell_node_idx = local_numerical_modes[l]
                     for ll in range(2):
                         if (ll != interp_id_list[l]):
-                            coeff *= (input_tuple[local_numerical_modes[l]]-self.cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])\
-                                     /(self.cell_nodes[cell_node_idx][element_index_modes_list[l][interp_id_list[l]]]-self.cell_nodes[cell_node_idx][element_index_modes_list[l][ll]])
+                            coeff *= (input_tuple[local_numerical_modes[l]]-self.parameter_nodes[cell_node_idx][element_index_modes_list[l][ll]])\
+                                     /(self.parameter_nodes[cell_node_idx][element_index_modes_list[l][interp_id_list[l]]]-self.parameter_nodes[cell_node_idx][element_index_modes_list[l][ll]])
                 factor_row_list = []
                 interp_counter = 0
                 for l in range(len(input_tuple)):
@@ -379,12 +370,12 @@ class cpr_model():
                         elif (decisions[l]==1):
                             row_data = []
                             for ll in range(len(self.FM1[l][0,:])):
-                                row_data.append(self.FM1[l][0,ll] + (input_tuple[l]-self.cell_nodes[l][0])/(self.cell_nodes[l][1]-self.cell_nodes[l][0])*(self.FM1[l][1,ll]-self.FM1[l][0,ll]))
+                                row_data.append(self.FM1[l][0,ll] + (input_tuple[l]-self.parameter_nodes[l][0])/(self.parameter_nodes[l][1]-self.parameter_nodes[l][0])*(self.FM1[l][1,ll]-self.FM1[l][0,ll]))
                             factor_row_list.append(np.array(row_data))
                         elif (decisions[l]==2):
                             row_data = []
                             for ll in range(len(self.FM1[l][0,:])):
-                                row_data.append(self.FM1[l][-2,ll] + (input_tuple[l]-self.cell_nodes[l][-2])/(self.cell_nodes[l][-1]-self.cell_nodes[l][-2])*(self.FM1[l][-1,ll]-self.FM1[l][-2,ll]))
+                                row_data.append(self.FM1[l][-2,ll] + (input_tuple[l]-self.parameter_nodes[l][-2])/(self.parameter_nodes[l][-1]-self.parameter_nodes[l][-2])*(self.FM1[l][-1,ll]-self.FM1[l][-2,ll]))
                             factor_row_list.append(np.array(row_data))
                 t_val = np.einsum(self.contract_str,*factor_row_list)
                 if (self.response_transform==0):
@@ -398,7 +389,7 @@ class cpr_model():
             return model_val
         else:
             model_prediction = 0
-            for lll in range(self.cp_rank_for_extrapolation):
+            for lll in range(self.cp_rank[1]):
                 model_val = 1.
                 ordinal_count = 0
                 for l in range(len(input_tuple)):
@@ -406,8 +397,8 @@ class cpr_model():
                         if (local_interp_map[l]==0):
                             factor_matrix_contribution = np.exp(1)**self.extrap_models[l].predict([np.log(input_tuple[l])])[0]*self.FM2_sv[l][1]*self.FM2_sv[l][2][lll]
                         else:
-                            factor_matrix_contribution = self.FM2[l][node[l],lll] + (input_tuple[l]-self.cell_nodes[l][node[l]]) * (self.FM2[l][node[l]+1,lll] - self.FM2[l][node[l],lll])\
-                                     /(self.cell_nodes[l][node[l]+1]-self.cell_nodes[l][node[l]])
+                            factor_matrix_contribution = self.FM2[l][node[l],lll] + (input_tuple[l]-self.parameter_nodes[l][node[l]]) * (self.FM2[l][node[l]+1,lll] - self.FM2[l][node[l],lll])\
+                                     /(self.parameter_nodes[l][node[l]+1]-self.parameter_nodes[l][node[l]])
                     elif (self.interp_map[l]==2):
                         if (ordinal_prediction_switch[ordinal_count]==1):
                             factor_matrix_contribution = np.exp(1)**self.extrap_models[l].predict([np.log(input_tuple[l])])[0]*self.FM2_sv[l][1]*self.FM2_sv[l][2][lll]
@@ -422,14 +413,14 @@ class cpr_model():
 
     # NOTE: The exhaustive-search method below is not efficient for high-dimensional configuration spaces.
     def ask_per_mode(self,min_element,level,config,best_configuration):
-        if (level == len(self.cell_nodes)):
+        if (level == len(self.parameter_nodes)):
             t_val = self.predict(config)
             if (t_val < min_element):
                 min_element = t_val
                 best_configuration = list(config)
             return
-        for i in range(len(self.cell_nodes[level])):
-            config.append(self.cell_nodes[level][i])
+        for i in range(len(self.parameter_nodes[level])):
+            config.append(self.parameter_nodes[level][i])
             factor_row_list.append(self.FM2[level][i,:])
             self.ask_per_mode(min_element,level+1,config,factor_row_list,best_configuration)
             factor_row_list.pop()
@@ -438,6 +429,7 @@ class cpr_model():
     def ask(self,n_points=None, batch_size=20):
         if (n_points != 1):
             raise AssertionError("Invalid number of points")
+        import scipy.stats as scst
         """
         # Initial strategy: search across all elements of tensor
         min_runtime_input = self.ask_per_mode(np.inf,0,[],[])
@@ -460,7 +452,7 @@ class cpr_model():
                         save_min_row = j
                 if (save_min_row < 0):
                     raise AssertionError("Invalid")
-                min_runtime_input.append(self.cell_nodes[i][save_min_row])
+                min_runtime_input.append(self.parameter_nodes[i][save_min_row])
             elif (self.interp_map[i]==1):
                 # Can likely just use factor matrix, but not sure how to select the best parameter here
                 # For single-task autotuning, we don't need to do anything here, but for multi-task autotuning this becomes interesting
@@ -476,14 +468,14 @@ class cpr_model():
                     else:
                         save_row_array = []
                         for j2 in range(len(self.FM2[i][0,:])):
-                            save_row_array.append(np.exp(1)**self.extrap_models[i].predict([np.log(self.cell_nodes[i][j])])[0]*self.FM2_sv[i][1]*self.FM2_sv[i][2][j2])
+                            save_row_array.append(np.exp(1)**self.extrap_models[i].predict([np.log(self.parameter_nodes[i][j])])[0]*self.FM2_sv[i][1]*self.FM2_sv[i][2][j2])
                         row_metric = scst.gmean(self.FM2[i][j,:])
                     if (row_metric < min_row_metric):
                         min_row_metric = row_metric
                         save_min_row = j
                 if (save_min_row < 0):
                     raise AssertionError("")
-                min_runtime_input.append(self.cell_nodes[i][save_min_row])
+                min_runtime_input.append(self.parameter_nodes[i][save_min_row])
         return min_runtime_input 
 
     def tell(self,configuration,runtime):
@@ -493,7 +485,7 @@ class cpr_model():
             self.fit(self.Xi,self.yi)
         return
 
-    def print_parameters(self):
+    def print_model(self):
         if (self.build_extrapolation_model):
             print("Extrapolation model")
             for i in range(len(self.FM2)):
@@ -526,7 +518,7 @@ class cpr_model():
         for i in range(len(self.FM1)):
             print("Factor matrix %i"%(i))
             for k in range(len(self.FM1[i][:,0])):
-                print("%f,"%(self.cell_nodes[i][k])),
+                print("%f,"%(self.parameter_nodes[i][k])),
                 for j in range(len(self.FM1[i][0,:])):
                     scale = la.norm(self.FM1[i][:,j],2)
                     print("%f,"%(self.FM1[i][k,j]/scale)),
@@ -536,8 +528,76 @@ class cpr_model():
             for i in range(len(self.FM2)):
                 print("Factor matrix %i"%(i))
                 for k in range(len(self.FM2[i][:,0])):
-                    print("%f,"%(self.cell_nodes[i][k])),
+                    print("%f,"%(self.parameter_nodes[i][k])),
                     for j in range(len(self.FM2[i][0,:])):
                         scale = la.norm(self.FM2[i][:,j],2)
                         print("%f,"%(self.FM2[i][k,j]/scale)),
                     print("")
+
+    def write_to_file(self,file_name):
+        file_ptr = open(file_name,'w')
+        file_ptr.write("%d,%d\n"%(len(self.interval_spacing),self.cp_rank[0]))
+        for i in range(len(self.parameter_nodes)):
+            if (i>0):
+                file_ptr.write(",%d"%(len(self.parameter_nodes[i])))
+            else:
+                file_ptr.write("%d"%(len(self.parameter_nodes[i])))
+        file_ptr.write("\n")
+        """
+        if (self.build_extrapolation_model):
+            print("Extrapolation model")
+            for i in range(len(self.FM2)):
+                if (self.interp_map[i]>0):
+                    print(self.extrap_models[i].summary())
+        """
+        #NOTE: No reason to write normalization coefficients to file.
+        """
+        normalization_factors = [1]*len(self.FM1[0][0,:])
+        for i in range(len(self.FM1[0][0,:])):
+            for j in range(len(self.FM1)):
+                scale = la.norm(self.FM1[j][:,i],2)
+                normalization_factors[i] *= scale
+                #self.FM1[j][:,i] /= scale
+        # Print normalization constants
+        for i in range(len(normalization_factors)):
+            if (i>0):
+                file_ptr.write(",%lf"%(normalization_factors[i])),
+            else:
+                file_ptr.write("%lf"%(normalization_factors[i])),
+        file_ptr.write("\n")
+        """
+        """
+        if (self.build_extrapolation_model):
+            normalization_factors = [1]*len(self.FM2[0][0,:])
+            for i in range(len(self.FM2[0][0,:])):
+                for j in range(len(self.FM2)):
+                    scale = la.norm(self.FM2[j][:,i],2)
+                    normalization_factors[i] *= scale
+                    #self.FM2[j][:,i] /= scale
+            # Print normalization constants
+            print("Normalization scaling factors")
+            for i in range(len(normalization_factors)):
+                print("%f,"%(normalization_factors[i])),
+            print("")
+        """
+        # Print factor matrices
+        for i in range(len(self.FM1)):
+            for k in range(len(self.FM1[i][:,0])):
+                file_ptr.write("%f"%(self.parameter_nodes[i][k])),
+                for j in range(len(self.FM1[i][0,:])):
+                    #scale = la.norm(self.FM1[i][:,j],2)
+                    #file_ptr.write(",%f"%(self.FM1[i][k,j]/scale))
+                    file_ptr.write(",%f"%(self.FM1[i][k,j]))
+                file_ptr.write("\n")
+        """
+        # Print factor matrices
+        if (self.build_extrapolation_model):
+            for i in range(len(self.FM2)):
+                print("Factor matrix %i"%(i))
+                for k in range(len(self.FM2[i][:,0])):
+                    print("%f,"%(self.parameter_nodes[i][k])),
+                    for j in range(len(self.FM2[i][0,:])):
+                        scale = la.norm(self.FM2[i][:,j],2)
+                        print("%f,"%(self.FM2[i][k,j]/scale)),
+                    print("")
+        """
