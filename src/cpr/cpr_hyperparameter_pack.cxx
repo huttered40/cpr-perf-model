@@ -142,22 +142,30 @@ cpr_hyperparameter_pack::~cpr_hyperparameter_pack(){
 cprg_hyperparameter_pack::cprg_hyperparameter_pack(int nparam) : cpr_hyperparameter_pack(nparam){
   // Default
   this->_max_spline_degree=1;
+  this->_factor_matrix_element_transformation = runtime_transformation::LOG;
+  this->_factor_matrix_underlying_position_transformation = parameter_transformation::LOG;
 }
 
 cprg_hyperparameter_pack::cprg_hyperparameter_pack(const cprg_hyperparameter_pack& rhs) : cpr_hyperparameter_pack(rhs){
   this->_max_spline_degree = rhs._max_spline_degree;
+  this->_factor_matrix_element_transformation = rhs._factor_matrix_element_transformation;
+  this->_factor_matrix_underlying_position_transformation = rhs._factor_matrix_underlying_position_transformation;
 }
 
 void cprg_hyperparameter_pack::get(hyperparameter_pack& rhs) const{
   this->cpr_hyperparameter_pack::get(rhs);
   cprg_hyperparameter_pack& rhs_derived = dynamic_cast<cprg_hyperparameter_pack&>(rhs);
   rhs_derived._max_spline_degree = this->_max_spline_degree;
+  rhs_derived._factor_matrix_element_transformation = this->_factor_matrix_element_transformation;
+  rhs_derived._factor_matrix_underlying_position_transformation = this->_factor_matrix_underlying_position_transformation;
 }
 
 void cprg_hyperparameter_pack::set(const hyperparameter_pack& rhs){
   this->cpr_hyperparameter_pack::set(rhs);
   const cprg_hyperparameter_pack& rhs_derived = dynamic_cast<const cprg_hyperparameter_pack&>(rhs);
   this->_max_spline_degree = rhs_derived._max_spline_degree;
+  this->_factor_matrix_element_transformation = rhs_derived._factor_matrix_element_transformation;
+  this->_factor_matrix_underlying_position_transformation = rhs_derived._factor_matrix_underlying_position_transformation;
 }
 
 cprg_hyperparameter_pack::~cprg_hyperparameter_pack(){}

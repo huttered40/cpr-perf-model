@@ -1761,10 +1761,10 @@ double cprg_model::predict(const double* configuration) const{
                   double input_scale=1;
                   for (int kk=0; kk<1+_parameters->spline_degree; kk++){
                     ppp += input_scale*fmesvd[fmesvd_offset+kk];
-                    input_scale*=log(configuration[l]);
+                    input_scale *= (_hyperparameters->_factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(configuration[l]) : configuration[l]);
                   }
                   for (int lll=0; lll<rank; lll++){
-                    factor_row_list.push_back(exp(ppp)*fmesvd[fmesvd_offset+1+_parameters->spline_degree]*fmesvd[fmesvd_offset+2+_parameters->spline_degree+lll]);
+                    factor_row_list.push_back((_hyperparameters->_factor_matrix_element_transformation == runtime_transformation::LOG ? exp(ppp) : ppp)*fmesvd[fmesvd_offset+1+_parameters->spline_degree]*fmesvd[fmesvd_offset+2+_parameters->spline_degree+lll]);
                   }
             }
           }
@@ -1890,11 +1890,11 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
 	   assert(k<valid_tensor_cell_points[i].size());
 	   double point_val = valid_tensor_cell_points[i][k];
 	   assert(point_val>0);
-	   feature_matrix[num_elements_to_keep*j+k] = log(point_val)*feature_matrix[num_elements_to_keep*(j-1)+k];
+	   feature_matrix[num_elements_to_keep*j+k] = feature_matrix[num_elements_to_keep*(j-1)+k] * (_hyperparameters->_factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(point_val) : point_val);
 	 }
        }
        for (int k=0; k<num_elements_to_keep; k++){
-	 left_singular_matrix[k] = log(left_singular_matrix[k]);
+	 left_singular_matrix[k] = _hyperparameters->_factor_matrix_element_transformation==runtime_transformation::LOG ? log(left_singular_matrix[k]) : left_singular_matrix[k];
        }
 /*
        if (world_rank == 0){

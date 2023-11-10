@@ -59,6 +59,8 @@ public:
   virtual void set(const hyperparameter_pack& rhs) override;
 
   int _max_spline_degree;
+  runtime_transformation _factor_matrix_element_transformation;
+  parameter_transformation _factor_matrix_underlying_position_transformation;
 };
 
 };

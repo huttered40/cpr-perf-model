@@ -274,6 +274,18 @@ void set_cprg_param_pack(int nparam, performance_model::cprg_hyperparameter_pack
     custom_assert(arg_pack._max_spline_degree>0, "Invalid option for CPPME_MAX_SPLINE_DEGREE\n");
   }
   if (verbose) std::cout << arg_pack._max_spline_degree << "\n";
+
+  env_var_ptr = std::getenv("CPPME_FACTOR_MATRIX_ELEMENT_TRANSFORM");
+  if (env_var_ptr != NULL){
+    if (std::string(env_var_ptr) == "NONE") arg_pack._factor_matrix_element_transformation = performance_model::runtime_transformation::NONE;
+    else if (std::string(env_var_ptr) == "LOG") arg_pack._factor_matrix_element_transformation = performance_model::runtime_transformation::LOG;
+  }
+
+  env_var_ptr = std::getenv("CPPME_FACTOR_MATRIX_UNDERLYING_POSITION_TRANSFORM");
+  if (env_var_ptr != NULL){
+    if (std::string(env_var_ptr) == "NONE") arg_pack._factor_matrix_underlying_position_transformation = performance_model::parameter_transformation::NONE;
+    else if (std::string(env_var_ptr) == "LOG") arg_pack._factor_matrix_underlying_position_transformation = performance_model::parameter_transformation::LOG;
+  }
 }
 
 bool is_verbose(){
