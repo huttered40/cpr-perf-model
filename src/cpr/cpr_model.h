@@ -16,6 +16,35 @@ class cprg_hyperparameter_pack;
 class cpr_parameter_pack;
 class cprg_parameter_pack;
 
+class tensor_model_fit_info : public model_fit_info{
+public:
+  tensor_model_fit_info();
+  tensor_model_fit_info(const tensor_model_fit_info& rhs);
+  tensor_model_fit_info& operator=(const tensor_model_fit_info& rhs);
+  virtual ~tensor_model_fit_info();
+  double tensor_density{-1};
+  double num_tensor_elements{-1};
+  double quadrature_error{-1};
+};
+
+class cpr_model_fit_info : public tensor_model_fit_info{
+public:
+  cpr_model_fit_info();
+  cpr_model_fit_info(const cpr_model_fit_info& rhs);
+  cpr_model_fit_info& operator=(const cpr_model_fit_info& rhs);
+  virtual ~cpr_model_fit_info();
+  double loss{-1};
+  double low_rank_approximation_error{-1};
+};
+
+class cprg_model_fit_info : public cpr_model_fit_info{
+public:
+  cprg_model_fit_info();
+  cprg_model_fit_info(const cprg_model_fit_info& rhs);
+  cprg_model_fit_info& operator=(const cprg_model_fit_info& rhs);
+  virtual ~cprg_model_fit_info();
+};
+
 class cpr_model : public model{
 public:
   cpr_model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack=nullptr);
@@ -24,7 +53,7 @@ public:
   cpr_model& operator=(const cpr_model& rhs) = delete;
   virtual ~cpr_model() override;
   virtual double predict(const double* configuration) const override;
-  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool compute_fit_error=true, bool save_dataset=false) override;
+  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset=false, model_fit_info* fit_info=nullptr) override;
   virtual void write_to_file(const char* file_path) const override;
   virtual void read_from_file(const char* file_path) override;
   void get_hyperparameters(hyperparameter_pack& pack) const override;
@@ -51,7 +80,7 @@ public:
   cprg_model& operator=(const cprg_model& rhs) = delete;
   virtual ~cprg_model() override;
   virtual double predict(const double* configuration) const override;
-  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool compute_fit_error=true, bool save_dataset=false) override;
+  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset=false, model_fit_info* fit_info=nullptr) override;
   virtual void write_to_file(const char* file_path) const override;
   virtual void read_from_file(const char* file_path) override;
   void get_hyperparameters(hyperparameter_pack& pack) const override;

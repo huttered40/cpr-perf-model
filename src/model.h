@@ -10,6 +10,16 @@ enum class parameter_type;
 class hyperparameter_pack;
 class parameter_pack;
 
+class model_fit_info{
+public:
+  model_fit_info();
+  model_fit_info(const model_fit_info& rhs);
+  model_fit_info& operator=(const model_fit_info& rhs);
+  virtual ~model_fit_info();
+  double training_error{-1};
+  int num_distinct_configurations{0};
+};
+
 class model{
 public:
   model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack);
@@ -19,7 +29,7 @@ public:
   model(const char* file_path);
   virtual ~model();
   virtual double predict(const double* configuration) const;
-  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool compute_fit_error=true, bool save_dataset=false) = 0;
+  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset=false, model_fit_info* fit_info = nullptr) = 0;
   virtual void write_to_file(const char* file_path) const;
   virtual void read_from_file(const char* file_path);
   double get_min_observed_parameter_value(int parameter_id) const;

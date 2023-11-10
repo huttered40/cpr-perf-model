@@ -749,6 +749,43 @@ std::vector<double> generate_nodes(double _min, double _max, int num_grid_pts, p
     return nodes;
 }
 
+tensor_model_fit_info::tensor_model_fit_info() : model_fit_info(){}
+tensor_model_fit_info::tensor_model_fit_info(const tensor_model_fit_info& rhs) : model_fit_info(rhs){
+  this->num_tensor_elements = rhs.num_tensor_elements;
+  this->tensor_density = rhs.tensor_density;
+  this->quadrature_error = rhs.quadrature_error;
+}
+tensor_model_fit_info& tensor_model_fit_info::operator=(const tensor_model_fit_info& rhs){
+  this->model_fit_info::operator=(rhs);
+  this->num_tensor_elements = rhs.num_tensor_elements;
+  this->tensor_density = rhs.tensor_density;
+  this->quadrature_error = rhs.quadrature_error;
+}
+tensor_model_fit_info::~tensor_model_fit_info(){
+}
+
+cpr_model_fit_info::cpr_model_fit_info() : tensor_model_fit_info(){}
+cpr_model_fit_info::cpr_model_fit_info(const cpr_model_fit_info& rhs) : tensor_model_fit_info(rhs){
+  this->loss = rhs.loss;
+  this->low_rank_approximation_error = rhs.low_rank_approximation_error;
+}
+cpr_model_fit_info& cpr_model_fit_info::operator=(const cpr_model_fit_info& rhs){
+  this->tensor_model_fit_info::operator=(rhs);
+  this->loss = rhs.loss;
+  this->low_rank_approximation_error = rhs.low_rank_approximation_error;
+}
+cpr_model_fit_info::~cpr_model_fit_info(){
+}
+
+cprg_model_fit_info::cprg_model_fit_info() : cpr_model_fit_info(){}
+cprg_model_fit_info::cprg_model_fit_info(const cprg_model_fit_info& rhs) : cpr_model_fit_info(rhs){
+}
+cprg_model_fit_info& cprg_model_fit_info::operator=(const cprg_model_fit_info& rhs){
+  this->cpr_model_fit_info::operator=(rhs);
+}
+cprg_model_fit_info::~cprg_model_fit_info(){
+}
+
 void cpr_model::init(
   std::vector<int>& cells_info, const std::vector<double> custom_grid_pts,
   int num_configurations, const double* features){
@@ -1160,18 +1197,16 @@ double cpr_model::predict(const double* configuration) const{
       return std::max(MIN_POS_RUNTIME,model_val);// Only way MIN_POS_RUNTIME is used is if linear extrapolation (decisions 1 or 2) is used  and it is inaccurate.
 }
 
-bool cpr_model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool compute_fit_error, bool save_dataset){
+bool cpr_model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset, model_fit_info* fit_info){
   auto _hyperparameters = dynamic_cast<cpr_hyperparameter_pack*>(this->hyperparameters);
   auto _parameters = dynamic_cast<cpr_parameter_pack*>(this->parameters);
-
-      if (!model::train(num_configurations,configurations,runtimes,save_dataset)) return false;
+  auto _fit_info = dynamic_cast<cpr_model_fit_info*>(fit_info);
+  bool compute_fit_error = _fit_info!=nullptr;
+      if (!model::train(num_configurations,configurations,runtimes,save_dataset,fit_info)) return false;
       assert(_hyperparameters != nullptr);
 
       int world_size_for_training; MPI_Comm_size(_hyperparameters->_cm_training,&world_size_for_training);
       assert(world_size_for_training==1);//TODO: Lift this constraint later
-
-      double* loss = &_hyperparameters->_info[0];
-      loss[2] = this->num_distinct_configurations;
 
       int my_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
       int world_rank = my_rank;//TODO: delete later
@@ -1209,10 +1244,6 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
 	local_cells_info[j] = (_hyperparameters->_partition_spacing[j]==parameter_range_partition::AUTOMATIC ? _hyperparameters->_partition_info[j] : static_cast<int>(std::min(static_cast<double>(_hyperparameters->_partition_info[j]),this->parameter_range_max[j]-this->parameter_range_min[j]+1)));
       }
       this->init(local_cells_info,{},num_configurations,configurations);
-
-      for (int j=0; j<this->order; j++){
-        loss[3+j] = _parameters->num_partitions_per_dimension[j];
-      }
 
       // Use dictionaries to save the sizes of Omega_i
       assert(this->Projected_Omegas.size() == this->order);
@@ -1281,8 +1312,8 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
           assert(training_node_data[training_node_data.size()-1] > 0);
       }
       if (compute_fit_error){
-        loss[0]=density;
-        loss[1]=ntensor_elements;
+        _fit_info->tensor_density = density;
+        _fit_info->num_tensor_elements = ntensor_elements;
       }
 
       std::vector<double> ones(training_nodes.size(),1.);
@@ -1318,15 +1349,17 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
 
       if (_hyperparameters->_loss_function == loss_function::MSE){
         for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->_loss_function);
-        loss[3+this->order] = cpd_als(&dw,&_T_,&omega,FM1,_hyperparameters->_regularization,_hyperparameters->_optimization_convergence_tolerance,_hyperparameters->_max_num_optimization_sweeps);
+        double loss_value = cpd_als(&dw,&_T_,&omega,FM1,_hyperparameters->_regularization,_hyperparameters->_optimization_convergence_tolerance,_hyperparameters->_max_num_optimization_sweeps);
+        if (compute_fit_error) _fit_info->loss = loss_value;
       } else if (_hyperparameters->_loss_function == loss_function::MLOGQ2){
          int num_re_inits = 0;
          while (num_re_inits < _hyperparameters->_max_num_re_inits){
            for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->_loss_function);
-           loss[3+this->order] = cpd_amn(&dw,&Tsparse,&omega,FM1,_hyperparameters->_regularization,\
+           double loss_value = cpd_amn(&dw,&Tsparse,&omega,FM1,_hyperparameters->_regularization,\
              _hyperparameters->_optimization_convergence_tolerance,_hyperparameters->_max_num_optimization_sweeps, _hyperparameters->_factor_matrix_optimization_convergence_tolerance,\
              _hyperparameters->_factor_matrix_optimization_max_num_iterations, _hyperparameters->_optimization_barrier_start,_hyperparameters->_optimization_barrier_stop,_hyperparameters->_optimization_barrier_reduction_factor);
-           if (loss[3+this->order] <= _hyperparameters->_optimization_convergence_tolerance_for_re_init) break;
+           if (compute_fit_error) _fit_info->loss = loss_value;
+           if (loss_value <= _hyperparameters->_optimization_convergence_tolerance_for_re_init) break;
            num_re_inits++;
          }
       } else assert(0);
@@ -1458,9 +1491,9 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
         agg_relative_error /= num_configurations;
         agg_quadrature_error /= num_configurations;
         agg_low_rank_error /= node_data_dict.size();
-        loss[4+this->order]=agg_relative_error;
-        loss[5+this->order]=agg_quadrature_error;
-        loss[6+this->order]=agg_low_rank_error;//TODO: NOTE: This is over-counting cells with more observations than others, but should be ok for now
+        _fit_info->training_error = agg_relative_error;
+        _fit_info->quadrature_error = agg_quadrature_error;
+        _fit_info->low_rank_approximation_error = agg_low_rank_error;
       }
       if (this->allocated_data){
         delete[] configurations;
@@ -1752,14 +1785,13 @@ double cprg_model::predict(const double* configuration) const{
       return std::max(MIN_POS_RUNTIME,model_val);// Only way MIN_POS_RUNTIME is used is if linear extrapolation (decisions 1 or 2) is used  and it is inaccurate.
 }
 
-bool cprg_model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool compute_fit_error, bool save_dataset){
-      if (!cpr_model::train(num_configurations,configurations,runtimes,compute_fit_error,save_dataset)) return false;
+bool cprg_model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset, model_fit_info* fit_info){
+      if (!cpr_model::train(num_configurations,configurations,runtimes,save_dataset,fit_info)) return false;
       auto _hyperparameters = dynamic_cast<cprg_hyperparameter_pack*>(this->hyperparameters);
       auto _parameters = dynamic_cast<cprg_parameter_pack*>(this->parameters);
       assert(_hyperparameters != nullptr);
       // still want to check whether or not to delete the existing stuff?
 
-      double* loss = &_hyperparameters->_info[0];
       std::vector<int> projection_set_size_threshold_ = {};
       if (projection_set_size_threshold_.size() < this->order){
         projection_set_size_threshold_.resize(this->order,1);	// very small estimate

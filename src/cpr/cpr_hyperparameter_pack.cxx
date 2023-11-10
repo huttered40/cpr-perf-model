@@ -83,8 +83,6 @@ cpr_hyperparameter_pack::cpr_hyperparameter_pack(int nparam) : piecewise_hyperpa
   this->_aggregate_obs_across_communicator=false;
   for (int i=0; i<nparam; i++) this->_partition_spacing[i]=parameter_range_partition::GEOMETRIC;
   for (int i=0; i<nparam; i++) this->_partition_info[i]=this->_partitions_per_dimension;
-  this->_info = new double[7+nparam];
-  for (int i=0; i<7+nparam; i++) this->_info[i]=-1; 
 }
 
 cpr_hyperparameter_pack::cpr_hyperparameter_pack(const cpr_hyperparameter_pack& rhs) : piecewise_hyperparameter_pack(rhs){
@@ -100,8 +98,6 @@ cpr_hyperparameter_pack::cpr_hyperparameter_pack(const cpr_hyperparameter_pack& 
   this->_optimization_barrier_start=rhs._optimization_barrier_start;
   this->_optimization_barrier_stop=rhs._optimization_barrier_stop;
   this->_optimization_barrier_reduction_factor=rhs._optimization_barrier_reduction_factor;
-  this->_info = new double[7+rhs._nparam];
-  for (int i=0; i<7+rhs._nparam; i++) this->_info[i]=rhs._info[i]; 
 }
 
 void cpr_hyperparameter_pack::get(hyperparameter_pack& rhs) const{
@@ -120,7 +116,6 @@ void cpr_hyperparameter_pack::get(hyperparameter_pack& rhs) const{
   rhs_derived._optimization_barrier_start=this->_optimization_barrier_start;
   rhs_derived._optimization_barrier_stop=this->_optimization_barrier_stop;
   rhs_derived._optimization_barrier_reduction_factor=this->_optimization_barrier_reduction_factor;
-  for (int i=0; i<7+rhs_derived._nparam; i++) rhs_derived._info[i]=this->_info[i]; 
 }
 
 void cpr_hyperparameter_pack::set(const hyperparameter_pack& rhs){
@@ -139,11 +134,9 @@ void cpr_hyperparameter_pack::set(const hyperparameter_pack& rhs){
   this->_optimization_barrier_start=rhs_derived._optimization_barrier_start;
   this->_optimization_barrier_stop=rhs_derived._optimization_barrier_stop;
   this->_optimization_barrier_reduction_factor=rhs_derived._optimization_barrier_reduction_factor;
-  for (int i=0; i<7+rhs_derived._nparam; i++) this->_info[i]=rhs_derived._info[i]; 
 }
 
 cpr_hyperparameter_pack::~cpr_hyperparameter_pack(){
- delete[] this->_info;
 }
 
 cprg_hyperparameter_pack::cprg_hyperparameter_pack(int nparam) : cpr_hyperparameter_pack(nparam){

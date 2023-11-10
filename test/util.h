@@ -27,30 +27,14 @@ void print(const char* msg, T val1, U val2){
   std::cout << msg << val1 << ": " << val2 << "\n";
 }
 
-void print_model_info(int order, double* info){
-/*
-  print("Number of distinct configurations: {}\n",info[2]);
-  print("Number of tensor elements: {}\n",info[1]);
-  for (int i=0; i<tensor_order; i++){
-    print("Tensor mode length {}: {}\n",i,info[3+i]);
-  }
-  print("Tensor density: {}\n",info[0]);
-  print("Loss for first model: {}\n",info[3+order]);
-  print("Loss for second model (trained using MLogQ2): {}\n",info[4+nparam]);
-  print("Quadrature error: {}\n",info[6+nparam]);
-  print("Low-rank approximation error on observed tensor elements: {}\n",info[7+nparam]);
-  print("Training error: {}\n",info[5+nparam]);
-*/
-  print("Number of distinct configurations: ",info[2]);
-  print("Number of tensor elements: ",info[1]);
-  for (int i=0; i<order; i++){
-    print("Tensor mode length ",i,info[3+i]);
-  }
-  print("Tensor density: ",info[0]);
-  print("Loss: ",info[3+order]);
-  print("Quadrature error: ",info[5+order]);
-  print("Low-rank approximation error on observed tensor elements: ",info[6+order]);
-  print("Training error: ",info[4+order]);
+void print_model_info(performance_model::cpr_model_fit_info& info){
+  print("Number of distinct configurations: ",info.num_distinct_configurations);
+  print("Number of tensor elements: ",info.num_tensor_elements);
+  print("Tensor density: ",info.tensor_density);
+  print("Loss: ",info.loss);
+  print("Quadrature error: ",info.quadrature_error);
+  print("Low-rank approximation error on observed tensor elements: ",info.low_rank_approximation_error);
+  print("Training error: ",info.training_error);
 }
 
 void custom_assert(bool alert, const char* msg){

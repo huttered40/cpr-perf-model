@@ -65,15 +65,16 @@ int main(int argc, char** argv){
   int nc = runtimes.size();
   const double* c = &configurations[0];
   const double* r = &runtimes[0];
-  bool is_trained = interpolator->train(nc,c,r);
+  performance_model::cpr_model_fit_info interpolator_fit_info;
+  performance_model::cprg_model_fit_info extrapolator_fit_info;
+  bool is_trained = interpolator->train(nc,c,r,false,&interpolator_fit_info);
   assert(is_trained);
-  is_trained = extrapolator->train(nc,c,r);
+  is_trained = extrapolator->train(nc,c,r,false,&extrapolator_fit_info);
   assert(is_trained);
   interpolator->get_hyperparameters(interpolator_pack);
   extrapolator->get_hyperparameters(extrapolator_pack);
-  if (verbose) print_model_info(nparam,interpolator_pack._info);
-  if (verbose) print_model_info(nparam,extrapolator_pack._info);
-
+  if (verbose) print_model_info(interpolator_fit_info);
+  if (verbose) print_model_info(extrapolator_fit_info);
   std::vector<double> test_configurations;
   std::vector<double> test_runtimes;
   get_dataset(argv[2],nparam,test_configurations,test_runtimes);

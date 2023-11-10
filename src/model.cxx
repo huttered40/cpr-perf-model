@@ -93,6 +93,18 @@ static bool aggregate_observations(int& num_configurations, const double*& confi
   return true;
 }
 
+model_fit_info::model_fit_info(){}
+model_fit_info::model_fit_info(const model_fit_info& rhs){
+  this->training_error = rhs.training_error;
+  this->num_distinct_configurations = rhs.num_distinct_configurations;
+}
+model_fit_info& model_fit_info::operator=(const model_fit_info& rhs){
+  this->training_error = rhs.training_error;
+  this->num_distinct_configurations = rhs.num_distinct_configurations;
+}
+model_fit_info::~model_fit_info(){
+}
+
 model::model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack){
   this->hyperparameters = new hyperparameter_pack(*pack);
   this->parameters = new parameter_pack();
@@ -127,7 +139,7 @@ model::~model(){
   this->parameter_range_min = nullptr;
   this->parameter_range_max = nullptr;
 }
-bool model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool compute_fit_error, bool save_dataset){
+bool model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset, model_fit_info* fit_info){
   int world_size_for_training,world_size_for_data_aggregation;
   MPI_Comm_size(this->hyperparameters->_cm_training,&world_size_for_training);
   MPI_Comm_size(this->hyperparameters->_cm_data,&world_size_for_data_aggregation);
@@ -160,6 +172,7 @@ bool model::train(int& num_configurations, const double*& configurations, const 
     distinct_configuration_dict.insert(config);
   }
   this->num_distinct_configurations = distinct_configuration_dict.size();
+  if (fit_info != nullptr) fit_info->num_distinct_configurations = this->num_distinct_configurations;
   // No point in training if the sample size is so small
   // We only really care about distinct configurations
   if (distinct_configuration_dict.size() < this->hyperparameters->_min_num_distinct_observed_configurations){

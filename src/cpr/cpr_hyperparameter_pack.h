@@ -46,7 +46,6 @@ public:
   double _optimization_barrier_start;
   double _optimization_barrier_stop;
   double _optimization_barrier_reduction_factor;
-  double* _info;
 };
 
 class cprg_hyperparameter_pack : public cpr_hyperparameter_pack{
