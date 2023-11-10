@@ -950,7 +950,6 @@ double cpr_model::predict(const double* configuration) const{
       for (int j=0; j<this->order; j++){
           // Get the closest node (note that node!=midpoint). Two nodes define the bounding box of a grid-cell. Each grid-cell has a mid-point.
           if (this->param_types[j]==parameter_type::CATEGORICAL){
-            assert(0);
             // Extrapolation is not possible here
             node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]);
             continue;
@@ -1543,7 +1542,6 @@ double cprg_model::predict(const double* configuration) const{
       for (int j=0; j<this->order; j++){
           // Get the closest node (note that node!=midpoint). Two nodes define the bounding box of a grid-cell. Each grid-cell has a mid-point.
           if (this->param_types[j]==parameter_type::CATEGORICAL){
-            assert(0);
             // Extrapolation is not possible here
             node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]);
             continue;
