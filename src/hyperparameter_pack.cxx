@@ -54,34 +54,56 @@ void hyperparameter_pack::set(const hyperparameter_pack& rhs){
 
 hyperparameter_pack::~hyperparameter_pack(){}
 
-void hyperparameter_pack::write_to_file(const char* file_path) const{
-  std::ofstream model_file_ptr;
-  model_file_ptr.open(file_path,std::ios_base::app);
-  if(model_file_ptr.fail()) return;
+void hyperparameter_pack::write_to_file(std::ofstream& file) const{
+  if (!file.is_open()) return;
+  file << this->_nparam << "\n";
   if (this->_loss_function == loss_function::MSE){
-    model_file_ptr << "MSE\n";
+    file << "MSE\n";
   } else if (this->_loss_function == loss_function::MLOGQ2){
-    model_file_ptr << "MLOGQ2\n";
-  } else model_file_ptr << "UNKNOWN\n";
+    file << "MLOGQ2\n";
+  } else file << "UNKNOWN\n";
   if (this->_runtime_transformation == runtime_transformation::NONE){
-    model_file_ptr << "NONE\n";
+    file << "NONE\n";
   } else if (this->_runtime_transformation == runtime_transformation::LOG){
-    model_file_ptr << "LOG\n";
-  } else model_file_ptr << "UNKNOWN\n";
+    file << "LOG\n";
+  } else file << "UNKNOWN\n";
   if (this->_parameter_transformation == parameter_transformation::NONE){
-    model_file_ptr << "NONE\n";
+    file << "NONE\n";
   } else if (this->_parameter_transformation == parameter_transformation::LOG){
-    model_file_ptr << "LOG\n";
-  } else model_file_ptr << "UNKNOWN\n";
-  model_file_ptr.close();
+    file << "LOG\n";
+  } else file << "UNKNOWN\n";
+  file << this->_aggregate_obs_across_communicator << "\n";
+  file << this->_min_num_distinct_observed_configurations << "\n"; 
+  //NOTE: _cm_training and _cm_data not written to file, nor read from file. Those must be reset by user, but will be set to defaults when reading in from file.
 }
 
-void hyperparameter_pack::read_from_file(const char* file_path){
-  std::ifstream model_file_ptr;
-  model_file_ptr.open(file_path,std::ios_base::app);
-  if(model_file_ptr.fail()) return;
-  //TODO: Add reverse of above
-  assert(0);
+void hyperparameter_pack::read_from_file(std::ifstream& file){
+  if (!file.is_open()) return;
+  file >> this->_nparam;
+  std::string temp;
+  file >> temp;
+  if (temp == "MSE"){
+    this->_loss_function = loss_function::MSE;
+  } else if (temp == "MLOGQ2"){
+    this->_loss_function = loss_function::MLOGQ2;
+  } else assert(0);
+  file >> temp;
+  if (temp == "NONE"){
+    this->_runtime_transformation = runtime_transformation::NONE;
+  } else if (temp == "LOG"){
+    this->_runtime_transformation = runtime_transformation::LOG;
+  } else assert(0);
+  file >> temp;
+  if (temp == "NONE"){
+    this->_parameter_transformation = parameter_transformation::NONE;
+  } else if (temp == "LOG"){
+    this->_parameter_transformation = parameter_transformation::LOG;
+  } else assert(0);
+  file >> this->_aggregate_obs_across_communicator;
+  file >> this->_min_num_distinct_observed_configurations; 
+  //NOTE: _cm_training and _cm_data not written to file, nor read from file. Those must be reset by user, but will be set to defaults when reading in from file.
+  this->_cm_data = MPI_COMM_SELF;
+  this->_cm_training = MPI_COMM_SELF;
 }
 
 };

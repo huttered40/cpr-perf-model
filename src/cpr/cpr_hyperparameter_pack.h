@@ -16,6 +16,8 @@ public:
 
   virtual void get(hyperparameter_pack& rhs) const override;
   virtual void set(const hyperparameter_pack& rhs) override;
+  virtual void write_to_file(std::ofstream& file) const;
+  virtual void read_from_file(std::ifstream& file);
 
   int _partitions_per_dimension;
   int _observations_per_partition;
@@ -33,6 +35,8 @@ public:
 
   virtual void get(hyperparameter_pack& rhs) const override;
   virtual void set(const hyperparameter_pack& rhs) override;
+  virtual void write_to_file(std::ofstream& file) const;
+  virtual void read_from_file(std::ifstream& file);
 
   int _cp_rank;
   double _regularization;
@@ -57,6 +61,8 @@ public:
 
   virtual void get(hyperparameter_pack& rhs) const override;
   virtual void set(const hyperparameter_pack& rhs) override;
+  virtual void write_to_file(std::ofstream& file) const;
+  virtual void read_from_file(std::ifstream& file);
 
   int _max_spline_degree;
   runtime_transformation _factor_matrix_element_transformation;

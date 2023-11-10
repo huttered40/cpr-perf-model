@@ -2,6 +2,7 @@
 #define __PERFORMANCE_MODEL__MODEL_H_
 
 #include <vector>
+#include <fstream>
 
 namespace performance_model{
 
@@ -26,7 +27,6 @@ public:
   model(const model& rhs) = delete;
   model& operator=(const model& rhs) = delete;
   //TODO: What about std::vector<parameter_range_partition> interval_spacing? This is specific to CPR, not to all partitions
-  model(const char* file_path);
   virtual ~model();
   virtual double predict(const double* configuration) const;
   virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset=false, model_fit_info* fit_info = nullptr) = 0;
@@ -41,6 +41,9 @@ public:
   virtual void set_parameters(const parameter_pack& rhs);
 
 protected:
+  void write_to_file(std::ofstream& file) const;
+  void read_from_file(std::ifstream& file);
+
   // Characteristics of the input data, NOT the model itself.
   int m_nparam;
   parameter_type* param_types;

@@ -8,6 +8,8 @@
 #include <mpi.h>
 #endif
 
+#include <fstream>
+
 namespace performance_model{
 
 enum class runtime_transformation;
@@ -22,8 +24,8 @@ public:
   hyperparameter_pack& operator=(const hyperparameter_pack& rhs) = delete;
   virtual void get(hyperparameter_pack& rhs) const;
   virtual void set(const hyperparameter_pack& rhs);
-  virtual void write_to_file(const char* file_path) const;
-  virtual void read_from_file(const char* file_path);
+  virtual void write_to_file(std::ofstream& file_path) const;
+  virtual void read_from_file(std::ifstream& file_path);
 
   loss_function _loss_function;
   parameter_transformation _parameter_transformation;

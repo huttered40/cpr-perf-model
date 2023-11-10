@@ -793,14 +793,10 @@ void cpr_model::init(
     auto _hyperparameters = dynamic_cast<cpr_hyperparameter_pack*>(this->hyperparameters);
     auto _parameters = dynamic_cast<cpr_parameter_pack*>(this->parameters);
 
-    for (int i=0; i<this->m_nparam; i++){
-      if (this->param_types[i]==parameter_type::NUMERICAL) this->numerical_modes.push_back(i);
-      else this->categorical_modes.push_back(i);
-    }
-
     _parameters->knot_positions.clear();
     _parameters->knot_index_offsets.clear();
     _parameters->num_partitions_per_dimension.resize(this->order);
+    _parameters->num_dimensions = this->order;
     _parameters->knot_index_offsets.resize(this->order);
     _parameters->knot_index_offsets[0]=0;
     for (int i=0; i<this->order; i++){
@@ -873,6 +869,7 @@ void cpr_model::init(
 	}
         assert(_parameters->num_partitions_per_dimension[i]>0);
     }
+    _parameters->num_knots = _parameters->knot_positions.size();
 /*
     // Debug Info
     std::cout << "Min/Max mode range: " << std::endl;
@@ -913,60 +910,15 @@ cpr_model::cpr_model(int nparam, const parameter_type* parameter_types, const hy
   for (int i=0; i<this->order; i++) { if (this->param_types[i]!=parameter_type::NUMERICAL) { assert(0); } }// NOT TESTED YET
   //TODO
 //  this->interval_spacing.resize(this->order); for (int i=0; i<this->order; i++) this->interval_spacing[i] = _hyperparameters->_partition_spacing[i];
+  for (int i=0; i<this->m_nparam; i++){
+    if (this->param_types[i]==parameter_type::NUMERICAL) this->numerical_modes.push_back(i);
+    else this->categorical_modes.push_back(i);
+  }
+
   this->m_is_valid=false;
 }
 
 cpr_model::~cpr_model(){
-}
-
-cpr_model::cpr_model(const char* file_path) : model(file_path){
-/*
-      assert(0);
-      std::ifstream model_file_ptr;
-      model_file_ptr.open(file_path,std::ios_base::out);
-      if(model_file_ptr.fail()){ this->m_is_valid = false; return; }
-      this->m_is_valid=true;
-      std::string temp;
-      getline(model_file_ptr,temp,',');
-      this->order = std::stoi(temp);
-      this->_parameters->num_partitions_per_dimension.resize(this->order);
-      getline(model_file_ptr,temp,'\n');
-      this->cp_rank[0] = std::stoi(temp);
-      //NOTE: The number of knots (equivalently, grid-pts) per mode is NOT equivalent to the number of tensor elements per mode. If there are N knots per mode, then the number of tensor elements, or sub-intervals equivalently, is N-1.
-      int num_knots = 0;
-      for (int i=0; i<this->order-1; i++){
-	getline(model_file_ptr,temp,',');
-	this->_parameters->num_partitions_per_dimension[i]=std::stoi(temp)-1;
-	num_knots += (1+this->_parameters->num_partitions_per_dimension[i]);
-      }
-      getline(model_file_ptr,temp,'\n');
-      this->_parameters->num_partitions_per_dimension[this->order-1]=std::stoi(temp)-1;
-      num_knots += (1+this->_parameters->num_partitions_per_dimension[this->order-1]);
-      this->_parameters->knot_positions.resize(num_knots);
-      //TODO: I am skeptical about the code below, use of num_knots should be instead num_cells, which is then dependent on the param_type, right?
-      //this->factor_matrix_elements_generalizer = new double[(num_knots-this->order)*cp_rank[0]];
-      //this->factor_matrix_elements_extrapolator = new double[...];
-      int node_counter=0;
-      int factor_matrix_element_counter=0;
-      for (int i=0; i<this->order; i++){
-	getline(model_file_ptr,temp,',');
-	this->_parameters->knot_positions[node_counter++] = std::stod(temp);
-	for (int j=0; j<this->cp_rank[0]-1; j++){
-	  getline(model_file_ptr,temp,',');
-	  this->factor_matrix_elements_generalizer[factor_matrix_element_counter++] = std::stod(temp);
-	}
-	getline(model_file_ptr,temp,'\n');
-	this->factor_matrix_elements_generalizer[factor_matrix_element_counter++] = std::stod(temp);
-      }
-      //TODO: Read in extrapolation model parameters to factor_matrix_elements_extrapolator, but this requires writer to write it first.
-      this->save_dataset=false;
-      //TODO: All below should be read from file
-      //NOTE: Below: not sure whether to store all configurations
-      this->yi.clear();
-      this->Xi.clear();
-      this->Projected_Omegas.clear();
-      this->Projected_Omegas.resize(this->order);
-*/
 }
 
 double cpr_model::predict(const double* configuration) const{
@@ -1383,6 +1335,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
       }
       if (_parameters->factor_matrix_elements!=nullptr) delete[] _parameters->factor_matrix_elements;
       _parameters->factor_matrix_elements = temporary_buffer;
+      _parameters->num_factor_matrix_elements = total_elements_across_all_factor_matrices;
       _parameters->cp_rank = _hyperparameters->_cp_rank;
       for (int i=0; i<this->order; i++){
         delete FM1[i];
@@ -1503,12 +1456,33 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
 }
 
 void cpr_model::write_to_file(const char* file_path) const{
-  //TODO
-  assert(0);
+  std::ofstream model_file_ptr;
+  // Will overwrite anything in existing file
+  model_file_ptr.open(file_path,std::ios_base::out);
+  if(model_file_ptr.fail()) return;
+  this->write_to_file(model_file_ptr);
+  model_file_ptr.close();
 }
 void cpr_model::read_from_file(const char* file_path){
- //TODO
-  assert(0);
+  std::ifstream model_file_ptr;
+  // Will overwrite anything in existing file
+  model_file_ptr.open(file_path,std::ios_base::in);
+  if(model_file_ptr.fail()) return;
+  this->read_from_file(model_file_ptr);
+  model_file_ptr.close();
+}
+
+void cpr_model::write_to_file(std::ofstream& file) const{
+  // Nothing local to cpr_model to write
+  this->model::write_to_file(file);
+}
+
+void cpr_model::read_from_file(std::ifstream& file){
+  // Nothing local to cpr_model to read
+  this->m_is_valid = true;
+  // order, numerical_modes, categorical_modes should all be set correctly upon invocation of constructor.
+  // Projected_Omegas does not need to be read in, as it is not used in predict(..) and is reset upon invocation of train(..)
+  this->model::read_from_file(file);
 }
 
 void cpr_model::get_hyperparameters(hyperparameter_pack& pack) const {
@@ -1534,10 +1508,6 @@ cprg_model::cprg_model(int nparam, const parameter_type* parameter_types, const 
 }
 
 cprg_model::~cprg_model(){
-}
-
-cprg_model::cprg_model(const char* file_path) : cpr_model(file_path){
-  assert(0);
 }
 
 double cprg_model::predict(const double* configuration) const{
@@ -1934,15 +1904,34 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
    //NOTE: Factor matrices are written as: tensor mode grows slowest, row of FM grows fastest
 
    _parameters->global_models = temporary_extrap_models;
+   _parameters->num_models = num_numerical_fm_rows;
    this->m_is_valid=true;
    return true;
 }
 
 void cprg_model::write_to_file(const char* file_path) const{
-  //TODO
+  std::ofstream model_file_ptr;
+  // Will overwrite anything in existing file
+  model_file_ptr.open(file_path,std::ios_base::out);
+  if(model_file_ptr.fail()) return;
+  this->write_to_file(model_file_ptr);
+  model_file_ptr.close();
 }
 void cprg_model::read_from_file(const char* file_path){
- //TODO
+  std::ifstream model_file_ptr;
+  // Will overwrite anything in existing file
+  model_file_ptr.open(file_path,std::ios_base::in);
+  if(model_file_ptr.fail()) return;
+  this->read_from_file(model_file_ptr);
+  model_file_ptr.close();
+}
+void cprg_model::write_to_file(std::ofstream& file) const{
+  this->cpr_model::write_to_file(file);
+}
+
+void cprg_model::read_from_file(std::ifstream& file){
+  // Nothing local to cpr_model to read
+  this->cpr_model::read_from_file(file);
 }
 void cprg_model::get_hyperparameters(hyperparameter_pack& pack) const{
   //TODO: Do I need to use dynamic_cast here?

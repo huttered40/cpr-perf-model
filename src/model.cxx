@@ -8,7 +8,6 @@
 
 #include <cassert>
 #include <cfloat>
-#include <fstream>
 #include <set>
 #include <vector>
 #include "model.h"
@@ -120,9 +119,6 @@ model::model(int nparam, const parameter_type* parameter_types, const hyperparam
     this->parameter_range_max[i] = DBL_MIN;
   }
 }
-model::model(const char* file_path){
-  //TODO
-}
 double model::predict(const double* configuration) const{
   assert(0);
   return 0;
@@ -204,29 +200,69 @@ bool model::train(int& num_configurations, const double*& configurations, const 
 }
 void model::write_to_file(const char* file_path) const{
   std::ofstream model_file_ptr;
-  model_file_ptr.open(file_path,std::ios_base::app);
+  // Will overwrite anything in existing file
+  model_file_ptr.open(file_path,std::ios_base::out);
   if(model_file_ptr.fail()) return;
-  model_file_ptr << this->m_nparam << "\n";
-  for (int i=0; i<this->m_nparam; i++){
-    if (i>0) model_file_ptr << ",";
-    if (param_types[i] == parameter_type::NUMERICAL) model_file_ptr << "NUMERICAL";
-    else model_file_ptr << "CATEGORICAL";
-  } model_file_ptr << "\n";
-  for (int i=0; i<this->m_nparam; i++){
-    if (i>0) model_file_ptr << ",";
-    model_file_ptr << parameter_range_min[i] << ",";
-  } model_file_ptr << "\n";
-  for (int i=0; i<this->m_nparam; i++){
-    if (i>0) model_file_ptr << ",";
-    model_file_ptr << parameter_range_max[i] << ",";
-  } model_file_ptr << "\n";
+  this->write_to_file(model_file_ptr);
   model_file_ptr.close();
 }
 void model::read_from_file(const char* file_path){
   std::ifstream model_file_ptr;
-  model_file_ptr.open(file_path,std::ios_base::out);
-  //TODO: Add reverse of above
-  assert(0);
+  model_file_ptr.open(file_path,std::ios_base::in);
+  this->read_from_file(model_file_ptr);
+  model_file_ptr.close();
+}
+void model::write_to_file(std::ofstream& file) const{
+  if (!file.is_open()) return;
+  file << this->m_nparam << "\n";
+  for (int i=0; i<this->m_nparam; i++){
+    if (i>0) file << ",";
+    if (param_types[i] == parameter_type::NUMERICAL) file << "NUMERICAL";
+    else file << "CATEGORICAL";
+  } file << "\n";
+  for (int i=0; i<this->m_nparam; i++){
+    if (i>0) file << ",";
+    file << parameter_range_min[i];
+  } file << "\n";
+  for (int i=0; i<this->m_nparam; i++){
+    if (i>0) file << ",";
+    file << parameter_range_max[i];
+  } file << "\n";
+  this->hyperparameters->write_to_file(file);
+  this->parameters->write_to_file(file);
+}
+void model::read_from_file(std::ifstream& file){
+  if (!file.is_open()) return;
+  std::string temp;
+  int num_input_parameters;
+  double temp_range;
+  file >> num_input_parameters;
+  assert(this->m_nparam == num_input_parameters);
+  // NOTE: These arrays would have been allocated upon invocation of model constructor
+  // NOTE: If any of these asserts fail, then the user doesn't have enough information regarding the model or underlying kernel/application parameter space that is being read in.
+  assert(this->parameter_range_max != nullptr);
+  assert(this->parameter_range_min != nullptr);
+  assert(this->param_types != nullptr);
+  for (int i=0; i<this->m_nparam; i++){
+    if (i==(this->m_nparam-1)) getline(file,temp,'\n');
+    else getline(file,temp,',');
+    if (temp == "NUMERICAL") assert(param_types[i] == parameter_type::NUMERICAL);
+    else if (temp == "CATEGORICAL") assert(param_types[i] == parameter_type::CATEGORICAL);
+  }
+  for (int i=0; i<this->m_nparam; i++){
+    if (i==(this->m_nparam-1)) getline(file,temp,'\n');
+    else getline(file,temp,',');
+    temp_range = std::stod(temp);
+    assert(temp_range == parameter_range_min[i]);
+  }
+  for (int i=0; i<this->m_nparam; i++){
+    if (i==(this->m_nparam-1)) getline(file,temp,'\n');
+    else getline(file,temp,',');
+    temp_range = std::stod(temp);
+    assert(temp_range == parameter_range_max[i]);
+  }
+  this->hyperparameters->read_from_file(file);
+//  this->parameters->read_from_file(file);
 }
 double model::get_min_observed_parameter_value(int parameter_id) const{
   return this->parameter_range_min[parameter_id];

@@ -18,10 +18,10 @@ void parameter_pack::get(parameter_pack& rhs) const{
 void parameter_pack::set(const parameter_pack& rhs){
 }
 
-void parameter_pack::write_to_file(const char* file) const{
+void parameter_pack::write_to_file(std::ofstream& file) const{
 }
 
-void parameter_pack::read_from_file(const char* file){
+void parameter_pack::read_from_file(std::ifstream& file){
 }
 
 };

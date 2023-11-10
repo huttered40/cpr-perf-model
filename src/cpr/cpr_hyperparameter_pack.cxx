@@ -59,6 +59,52 @@ piecewise_hyperparameter_pack::~piecewise_hyperparameter_pack(){
  delete[] this->_partition_spacing;
 }
 
+void piecewise_hyperparameter_pack::write_to_file(std::ofstream& file) const{
+  if (!file.is_open()) return;
+  this->hyperparameter_pack::write_to_file(file);
+  //TODO
+  file << this->_partitions_per_dimension << "\n";
+  file << this->_observations_per_partition << "\n";
+  for (int i=0; i<this->_nparam; i++){
+    if (i>0) file << ",";
+    file << this->_partition_info[i];
+  } file << "\n";
+  for (int i=0; i<this->_nparam; i++){
+    if (i>0) file << ",";
+    if (_partition_spacing[i]==parameter_range_partition::SINGLE) file << "SINGLE";
+    else if (_partition_spacing[i]==parameter_range_partition::AUTOMATIC) file << "AUTOMATIC";
+    else if (_partition_spacing[i]==parameter_range_partition::UNIFORM) file << "UNIFORM";
+    else if (_partition_spacing[i]==parameter_range_partition::GEOMETRIC) file << "GEOMETRIC";
+    else if (_partition_spacing[i]==parameter_range_partition::CUSTOM) file << "CUSTOM";
+  } file << "\n";
+  file << this->_max_partition_spacing_factor << "\n";
+}
+
+void piecewise_hyperparameter_pack::read_from_file(std::ifstream& file){
+  if (!file.is_open()) return;
+  this->hyperparameter_pack::read_from_file(file);
+  file >> this->_partitions_per_dimension;
+  file >> this->_observations_per_partition;
+  if (this->_partition_info == nullptr) this->_partition_info = new int[this->_nparam];
+  if (this->_partition_spacing == nullptr) this->_partition_spacing = new parameter_range_partition[this->_nparam];
+  std::string temp;
+  for (int i=0; i<this->_nparam; i++){
+    if (i==(this->_nparam-1)) getline(file,temp,'\n');
+    else getline(file,temp,',');
+    this->_partition_info[i] = std::stoi(temp);
+  }
+  for (int i=0; i<this->_nparam; i++){
+    if (i==(this->_nparam-1)) getline(file,temp,'\n');
+    else getline(file,temp,',');
+    if (temp == "SINGLE") _partition_spacing[i] =parameter_range_partition::SINGLE;
+    else if (temp == "AUTOMATIC") _partition_spacing[i] = parameter_range_partition::AUTOMATIC;
+    else if (temp == "UNIFORM") _partition_spacing[i] = parameter_range_partition::UNIFORM;
+    else if (temp == "GEOMETRIC") _partition_spacing[i] = parameter_range_partition::GEOMETRIC;
+    else if (temp == "CUSTOM") _partition_spacing[i] = parameter_range_partition::CUSTOM;
+  }
+  file >> this->_max_partition_spacing_factor;
+}
+
 cpr_hyperparameter_pack::cpr_hyperparameter_pack(int nparam) : piecewise_hyperparameter_pack(nparam){
   // Default
   this->_partitions_per_dimension=16;
@@ -139,6 +185,40 @@ void cpr_hyperparameter_pack::set(const hyperparameter_pack& rhs){
 cpr_hyperparameter_pack::~cpr_hyperparameter_pack(){
 }
 
+void cpr_hyperparameter_pack::write_to_file(std::ofstream& file) const{
+  if (!file.is_open()) return;
+  this->piecewise_hyperparameter_pack::write_to_file(file);
+  file << this->_cp_rank << "\n";
+  file << this->_regularization << "\n";
+  file << this->_max_num_re_inits << "\n";
+  file << this->_optimization_convergence_tolerance_for_re_init << "\n";
+  file << this->_interpolation_factor_tolerance << "\n";
+  file << this->_max_num_optimization_sweeps << "\n";
+  file << this->_optimization_convergence_tolerance << "\n";
+  file << this->_factor_matrix_optimization_max_num_iterations << "\n";
+  file << this->_factor_matrix_optimization_convergence_tolerance << "\n";
+  file << this->_optimization_barrier_start << "\n";
+  file << this->_optimization_barrier_stop << "\n";
+  file << this->_optimization_barrier_reduction_factor << "\n";
+}
+
+void cpr_hyperparameter_pack::read_from_file(std::ifstream& file){
+  if (!file.is_open()) return;
+  this->piecewise_hyperparameter_pack::read_from_file(file);
+  file >> this->_cp_rank;
+  file >> this->_regularization;
+  file >> this->_max_num_re_inits;
+  file >> this->_optimization_convergence_tolerance_for_re_init;
+  file >> this->_interpolation_factor_tolerance;
+  file >> this->_max_num_optimization_sweeps;
+  file >> this->_optimization_convergence_tolerance;
+  file >> this->_factor_matrix_optimization_max_num_iterations;
+  file >> this->_factor_matrix_optimization_convergence_tolerance;
+  file >> this->_optimization_barrier_start;
+  file >> this->_optimization_barrier_stop;
+  file >> this->_optimization_barrier_reduction_factor;
+}
+
 cprg_hyperparameter_pack::cprg_hyperparameter_pack(int nparam) : cpr_hyperparameter_pack(nparam){
   // Default
   this->_max_spline_degree=1;
@@ -169,6 +249,41 @@ void cprg_hyperparameter_pack::set(const hyperparameter_pack& rhs){
 }
 
 cprg_hyperparameter_pack::~cprg_hyperparameter_pack(){}
+
+void cprg_hyperparameter_pack::write_to_file(std::ofstream& file) const{
+  if (!file.is_open()) return;
+  this->cpr_hyperparameter_pack::write_to_file(file);
+  file << this->_max_spline_degree << "\n";
+  if (this->_factor_matrix_element_transformation == runtime_transformation::NONE){
+    file << "NONE\n";
+  } else if (this->_factor_matrix_element_transformation == runtime_transformation::LOG){
+    file << "LOG\n";
+  }
+  if (this->_factor_matrix_underlying_position_transformation == parameter_transformation::NONE){
+    file << "NONE\n";
+  } else if (this->_factor_matrix_underlying_position_transformation == parameter_transformation::LOG){
+    file << "LOG\n";
+  }
+}
+
+void cprg_hyperparameter_pack::read_from_file(std::ifstream& file){
+  if (!file.is_open()) return;
+  this->cpr_hyperparameter_pack::read_from_file(file);
+  file >> this->_max_spline_degree;
+  std::string temp;
+  file >> temp;
+  if (temp == "NONE"){
+    this->_factor_matrix_element_transformation = runtime_transformation::NONE;
+  } else if (temp == "LOG"){
+    this->_factor_matrix_element_transformation = runtime_transformation::LOG;
+  }
+  file >> temp;
+  if (temp == "NONE"){
+    this->_factor_matrix_underlying_position_transformation = parameter_transformation::NONE;
+  } else if (temp == "LOG"){
+    this->_factor_matrix_underlying_position_transformation = parameter_transformation::LOG;
+  }
+}
 
 };
 

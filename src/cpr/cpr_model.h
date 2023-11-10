@@ -48,7 +48,6 @@ public:
 class cpr_model : public model{
 public:
   cpr_model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack=nullptr);
-  cpr_model(const char* file_path);
   cpr_model(const cpr_model& rhs) = delete;
   cpr_model& operator=(const cpr_model& rhs) = delete;
   virtual ~cpr_model() override;
@@ -62,6 +61,8 @@ public:
   virtual void set_parameters(const parameter_pack& rhs) override;
 
 protected:
+  void write_to_file(std::ofstream& file) const;
+  void read_from_file(std::ifstream& file);
   void init(std::vector<int>& cells_info, const std::vector<double> custom_grid_pts={},
     int num_configurations=-1, const double* features=nullptr);
 
@@ -75,7 +76,6 @@ protected:
 class cprg_model : public cpr_model{
 public:
   cprg_model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack=nullptr);
-  cprg_model(const char* file_path);
   cprg_model(const cprg_model& rhs) = delete;
   cprg_model& operator=(const cprg_model& rhs) = delete;
   virtual ~cprg_model() override;
@@ -88,6 +88,9 @@ public:
   virtual void get_parameters(parameter_pack& rhs) const override;
   virtual void set_parameters(const parameter_pack& rhs) override;
 
+protected:
+  void write_to_file(std::ofstream& file) const;
+  void read_from_file(std::ifstream& file);
 };
 };
 #endif // __PERFORMANCE_MODEL__CPR_HYPERPARAMETER_PACK_H_

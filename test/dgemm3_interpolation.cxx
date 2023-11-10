@@ -92,6 +92,11 @@ int main(int argc, char** argv){
   total_err /= test_runtimes.size();
   std::cout << total_err << " " << max_err << std::endl;
 
+  if (argc>3) interpolator->write_to_file(argv[3]);
+  if (argc>4) extrapolator->write_to_file(argv[4]);
+  if (argc>3) interpolator->read_from_file(argv[3]);
+  if (argc>4) extrapolator->read_from_file(argv[4]);
+
   delete interpolator;
   delete extrapolator;
   MPI_Finalize();
