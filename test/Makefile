@@ -9,7 +9,7 @@ all: static
 
 static: dgemm3_interpolation
 
-dgemm3_interpolation: dgemm3_interpolation.cxx ../src/cp_model.cxx ../src/cp_model.h
+dgemm3_interpolation: dgemm3_interpolation.cxx util.h ../src/model.h
 	$(CXX) dgemm3_interpolation.cxx -o dgemm3_interpolation $(CXXFLAGS)
 
 clean:
