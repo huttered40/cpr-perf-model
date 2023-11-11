@@ -4,15 +4,12 @@
 // Read training data from file provided at command line
 // Set model hyperparameters via setting environment variables
 
-#include <time.h>
-#include <sys/time.h>
 #include <string>
 #include <cstring>
 #include <cassert>
-#include <cmath>
-#include <iostream>
 
 #include "util.h"
+#include "cp_perf_model.h"
 
 void get_dataset(const char* dataset_file_path, int order, std::vector<double>& configurations, std::vector<double>& runtimes){
   std::ifstream my_file;

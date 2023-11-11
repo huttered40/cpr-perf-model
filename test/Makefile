@@ -1,31 +1,38 @@
 CXX=mpicxx
 DEFS=
 INCLUDES=-I$(WORK2)/../cpr-perf-model/include/
-LDFLAGS=-L$(WORK2)/../cpr-perf-model/lib/
-LIBS=-lcpr_perf_model
-CXXFLAGS=-g -O3 -fopenmp $(DEFS) -std=c++0x $(INCLUDES) $(LDFLAGS) $(LIBS) -L/opt/intel/compilers_and_libraries_2018.2.199/linux/mkl/lib/intel64/ -lmkl_scalapack_lp64 -Wl,--start-group -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lmkl_blacs_intelmpi_lp64  -Wl,--end-group -lpthread -lm
+CXXFLAGS=-g -O3 -fopenmp $(DEFS) -std=c++0x $(INCLUDES)
 
-all: static
+# Using static library
+LDFLAGS=-L../lib/ -L$(WORK2)/../ctf_fork_fall_2023/ctf/lib/ -Wl,-rpath,$(WORK2)/../ctf_fork_fall_2023/ctf/lib_shared/ -L/opt/intel/compilers_and_libraries_2018.2.199/linux/mkl/lib/intel64/
+LIBS=-lcpr_perf_model -lctf -lmkl_scalapack_lp64 -Wl,--start-group -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lmkl_blacs_intelmpi_lp64  -Wl,--end-group -lpthread -lm
 
-static: dgeqrf2 dgemm3 bcast3 exafmm6 amg8 kripke9
+# Using shared library
+#LDFLAGS=-L../lib/ -Wl,-rpath,../lib/# -L/opt/intel/compilers_and_libraries_2018.2.199/linux/mkl/lib/intel64/
+#LIBS=-lcpr_perf_model# -lmkl_scalapack_lp64 -Wl,--start-group -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lmkl_blacs_intelmpi_lp64  -Wl,--end-group -lpthread -lm
 
-dgeqrf2: dgeqrf2.cxx util.h ../src/model.h
-	$(CXX) dgeqrf2.cxx -o dgeqrf2 $(CXXFLAGS)
+all: test_util.o dgeqrf2 dgemm3 bcast3 exafmm6 amg8 kripke9
 
-dgemm3: dgemm3.cxx util.h ../src/model.h
-	$(CXX) dgemm3.cxx -o dgemm3 $(CXXFLAGS)
+test_util.o: util.cxx util.h
+	$(CXX) $(CXXFLAGS) util.cxx -c -o test_util.o
 
-bcast3: bcast3.cxx util.h ../src/model.h
-	$(CXX) bcast3.cxx -o bcast3 $(CXXFLAGS)
+dgeqrf2: dgeqrf2.cxx test_util.o
+	$(CXX) $(CXXFLAGS) dgeqrf2.cxx test_util.o $(LDFLAGS) $(LIBS) -o dgeqrf2
 
-exafmm6: exafmm6.cxx util.h ../src/model.h
-	$(CXX) exafmm6.cxx -o exafmm6 $(CXXFLAGS)
+dgemm3: dgemm3.cxx test_util.o
+	$(CXX) $(CXXFLAGS) dgemm3.cxx test_util.o $(LDFLAGS) $(LIBS) -o dgemm3
 
-amg8: amg8.cxx util.h ../src/model.h
-	$(CXX) amg8.cxx -o amg8 $(CXXFLAGS)
+bcast3: bcast3.cxx test_util.o
+	$(CXX) $(CXXFLAGS) bcast3.cxx test_util.o $(LDFLAGS) $(LIBS) -o bcast3
 
-kripke9: kripke9.cxx util.h ../src/model.h
-	$(CXX) kripke9.cxx -o kripke9 $(CXXFLAGS)
+exafmm6: exafmm6.cxx test_util.o
+	$(CXX) $(CXXFLAGS) exafmm6.cxx test_util.o $(LDFLAGS) $(LIBS) -o exafmm6
+
+amg8: amg8.cxx test_util.o
+	$(CXX) $(CXXFLAGS) amg8.cxx test_util.o $(LDFLAGS) $(LIBS) -o amg8
+
+kripke9: kripke9.cxx test_util.o
+	$(CXX) $(CXXFLAGS) kripke9.cxx test_util.o $(LDFLAGS) $(LIBS) -o kripke9
 
 clean:
-	rm -f dgeqrf2 dgemm3 bcast3 exafmm6 amg8 kripke9
+	rm -f test_util.o dgeqrf2 dgemm3 bcast3 exafmm6 amg8 kripke9
