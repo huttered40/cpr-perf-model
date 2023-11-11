@@ -23,6 +23,7 @@
 
 #define NUMERICAL_PARAM_MIN_OBS_RANGE 32
 #define MIN_POS_RUNTIME 1e-8		// Essentially a "zero" runtime
+#define AMN_RESET 1e-6
 
 namespace performance_model{
 
@@ -127,30 +128,32 @@ void normalize(std::vector<CTF::Tensor<>*>& X){
 struct MLogQ2{
     //Current implementation is using \lambda  = e^m and replacing it in the function to get: e^m - xm
     static void Get_RHS(CTF::World* dw, CTF::Tensor<>* T, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*>& A, int num, double reg, double mu, CTF::Tensor<>* grad, CTF::Tensor<>* Hessian){
-        int64_t num_nnz_elems,num_nnz_elems2;
-        int64_t* ptr_to_indices,*ptr_to_indices2;
-        double* ptr_to_data,*ptr_to_data2;
         CTF::Tensor<> M(O);
         std::vector<int> mode_list(A.size());
         for (int j=0; j<A.size(); j++) mode_list[j]=j;
         CTF::TTTP(&M,A.size(),&mode_list[0],&A[0],true);
         auto M_reciprocal1 = M;
         auto M_reciprocal2 = M;
+        auto M_reciprocal3 = *T;
+        auto M_reciprocal4 = M;
 
-        M.get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
-        std::vector<double> new_data(num_nnz_elems); for (int i=0; i<num_nnz_elems; i++) new_data[i] = -1./ptr_to_data[i];
-        M_reciprocal1.write(num_nnz_elems,ptr_to_indices,&new_data[0]);
-        std::vector<double> new_data2(num_nnz_elems); for (int i=0; i<num_nnz_elems; i++) new_data2[i] = 1./(ptr_to_data[i]*ptr_to_data[i]);
-        M_reciprocal2.write(num_nnz_elems,ptr_to_indices,&new_data2[0]);
-        // Confirmed that swapping the negatives between new_data and new_data2 fails.
-        double* ptr_to_data_t;
-        T->get_local_data(&num_nnz_elems2,&ptr_to_indices2,&ptr_to_data_t,true);
-        assert(num_nnz_elems2 == num_nnz_elems);
-        for (int i=0; i<num_nnz_elems; i++) ptr_to_data[i] = log(ptr_to_data_t[i] / ptr_to_data[i]);
-        M.write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-        CTF::Sparse_mul(&M,&M_reciprocal1);
-        for (int i=0; i<num_nnz_elems; i++) ptr_to_data_t[i] = 1. + ptr_to_data[i];
-        Hessian->write(num_nnz_elems,ptr_to_indices,ptr_to_data_t);
+        char start_char = 'a';
+        std::string full_idx_str;
+        for (int i = 0; i < A.size(); ++i){
+          full_idx_str += start_char++;
+        }
+        CTF::Function<> inv([](double d) -> double { return 1./d; });
+        CTF::Function<> neg_inv([](double d) -> double { return -1./d; });
+        CTF::Function<> square_inv([](double d) -> double { return 1./(d*d); });
+        CTF::Function<> add_one([](double d) -> double { return 1.+d; });
+        M_reciprocal1[full_idx_str.c_str()] = neg_inv(M[full_idx_str.c_str()]);
+        //TODO: Try to just multiply M_reciprocal1 * M_reciprocal1
+        M_reciprocal2[full_idx_str.c_str()] = square_inv(M[full_idx_str.c_str()]);
+        M_reciprocal4[full_idx_str.c_str()] = inv(M[full_idx_str.c_str()]);
+        CTF::Sparse_mul(&M_reciprocal3,&M_reciprocal4);
+        CTF::Sparse_log(&M_reciprocal3);
+        (*Hessian)[full_idx_str.c_str()] = add_one(M_reciprocal3[full_idx_str.c_str()]);
+        CTF::Sparse_mul(&M_reciprocal3,&M_reciprocal1);
         CTF::Sparse_mul(Hessian,&M_reciprocal2);
 
         std::vector<CTF::Tensor<>*> lst_mat;
@@ -164,25 +167,12 @@ struct MLogQ2{
           }
         }
 
-        CTF::MTTKRP(&M,&lst_mat[0],num,true);
+        CTF::MTTKRP(&M_reciprocal3,&lst_mat[0],num,true);
         // Notice that grad should be negative, but it is not!
         //         This is taken into account when we subtract the step from the FM in 'step(..)'
         // Notice: no factors of 2. These are divided away automatically, as both the loss, regularization terms, etc. have them.
-        delete[] ptr_to_data;
-        delete[] ptr_to_data_t;
-        delete[] ptr_to_indices;
-        delete[] ptr_to_indices2;
-        lst_mat[num]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
-        A[num]->get_local_data(&num_nnz_elems2,&ptr_to_indices2,&ptr_to_data2,false);
-        assert(num_nnz_elems==num_nnz_elems2);
-        for (int i=0; i<num_nnz_elems; i++){
-          ptr_to_data[i] = ptr_to_data[i] + reg*ptr_to_data2[i] - mu/2./ptr_to_data2[i];
-        }
-        grad->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-        delete[] ptr_to_data;
-        delete[] ptr_to_data2;
-        delete[] ptr_to_indices;
-        delete[] ptr_to_indices2;
+        CTF::Function<> gradient_update([&reg,&mu](double d1, double d2) -> double { return d1+reg*d2 - mu/2./d2; });
+        (*grad)["ij"] = gradient_update((*lst_mat[num])["ij"],(*A[num])["ij"]);
         delete lst_mat[num];
     }
 
@@ -221,20 +211,22 @@ struct MLogQ2{
                     CTF::Solve_Factor(&Hessian,&lst_mat[0],&g,i,true,regu,regu,mu);
                     double step_nrm = lst_mat[i]->norm2() / A[i]->norm2();
                     prev_step_nrm = step_nrm;
+                    (*A[i])["ij"] = (*A[i])["ij"] - (*lst_mat[i])["ij"];
+                    (*lst_mat[i])["ij"] = (*A[i])["ij"];
                     // Verify that following update of factor matrix, every element is positive.
                     lst_mat[i]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
                     A[i]->get_local_data(&num_nnz_elems2,&ptr_to_indices2,&ptr_to_data2,false);
                     assert(num_nnz_elems == num_nnz_elems2);
                     for (int j=0; j<num_nnz_elems; j++){
-                      ptr_to_data2[j] = ptr_to_data2[j] - ptr_to_data[j]; if (ptr_to_data2[j] <= 0) ptr_to_data2[j]=1e-6;
+                      if (ptr_to_data2[j] <= 0) ptr_to_data2[j]=AMN_RESET;
                     }
                     A[i]->write(num_nnz_elems2,ptr_to_indices2,ptr_to_data2);
                     lst_mat[i]->write(num_nnz_elems2,ptr_to_indices2,ptr_to_data2);
-                    if (step_nrm <= factor_matrix_convergence_tolerance) break;
                     delete[] ptr_to_data;
                     delete[] ptr_to_data2;
                     delete[] ptr_to_indices;
                     delete[] ptr_to_indices2;
+                    if (step_nrm <= factor_matrix_convergence_tolerance) break;
                 }
                 mu /= barrier_reduction_factor;
                 newton_count += t;
