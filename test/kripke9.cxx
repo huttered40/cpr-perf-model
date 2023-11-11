@@ -32,9 +32,8 @@ void get_dataset(const char* dataset_file_path, int order, std::vector<double>& 
       else if (i>=13 && i<15) configurations.push_back(atof(temp_num.c_str()));
     }
     for (int i=0; i<8; i++) getline(my_file,temp_num,',');
-    getline(my_file,temp_num,',');
+    getline(my_file,temp_num,'\n');
     runtimes.push_back(atof(temp_num.c_str()));
-    getline(my_file,temp_num,'\n');// read in standard deviation
   }
 }
 

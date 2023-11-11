@@ -29,9 +29,8 @@ void get_dataset(const char* dataset_file_path, int order, std::vector<double>& 
       if (i<6 || i>8) configurations.push_back(atof(temp_num.c_str()));
     }
     for (int i=0; i<2; i++) getline(my_file,temp_num,',');
-    getline(my_file,temp_num,',');
+    getline(my_file,temp_num,'\n');// Runtime we model is the last column entry
     runtimes.push_back(atof(temp_num.c_str()));
-    getline(my_file,temp_num,'\n');// read in standard deviation
   }
 }
 
