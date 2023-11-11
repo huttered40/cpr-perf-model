@@ -1,6 +1,6 @@
 // Train data on a single process.
-// Kernel/Application: dgemm
-// Configuration parameters: 3 numerical (input) parameters (matrix dimensions m,n,k in BLAS interface)
+// Kernel/Application: amg
+// Configuration parameters: 8 numerical and categorical (input) parameters
 // Read training data from file provided at command line
 // Set model hyperparameters via setting environment variables
 
@@ -20,18 +20,15 @@ void get_dataset(const char* dataset_file_path, int order, std::vector<double>& 
 
   std::string temp_num;
   // Read in column header
-  for (int i=0; i<order+1; i++){
-    getline(my_file,temp_num,',');
-  }
   getline(my_file,temp_num,'\n');
-
+  // Input from columns {1,2,3,4,5,6,10,11}
+  // Data from columns {14}
   while (getline(my_file,temp_num,',')){
-    getline(my_file,temp_num,',');
-    configurations.push_back(atof(temp_num.c_str()));
-    for (int i=1; i<order; i++){
+    for (int i=0; i<11; i++){
       getline(my_file,temp_num,',');
-      configurations.push_back(atof(temp_num.c_str()));
+      if (i<6 || i>8) configurations.push_back(atof(temp_num.c_str()));
     }
+    for (int i=0; i<2; i++) getline(my_file,temp_num,',');
     getline(my_file,temp_num,',');
     runtimes.push_back(atof(temp_num.c_str()));
     getline(my_file,temp_num,'\n');// read in standard deviation
@@ -45,7 +42,7 @@ int main(int argc, char** argv){
 
   MPI_Init(&argc,&argv);
 
-  constexpr int nparam = 3;
+  constexpr int nparam = 8;
   std::vector<performance_model::parameter_type> param_types(nparam,performance_model::parameter_type::NUMERICAL);
   char* env_var_ptr;
   char* dataset_file_path = argv[1];
@@ -59,6 +56,10 @@ int main(int argc, char** argv){
   set_cpr_param_pack(nparam,interpolator_pack,get_cpr_model_hyperparameter_options(),verbose);
   performance_model::cprg_hyperparameter_pack extrapolator_pack(nparam);
   set_cprg_param_pack(nparam,extrapolator_pack,verbose);
+  for (int i=3; i<nparam; i++){
+    interpolator_pack._partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
+    extrapolator_pack._partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
+  }
 
   performance_model::model* interpolator = new performance_model::cpr_model(nparam,&param_types[0],&interpolator_pack);
   performance_model::cprg_model* extrapolator = new performance_model::cprg_model(nparam,&param_types[0],&extrapolator_pack);
