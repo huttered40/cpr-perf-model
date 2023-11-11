@@ -4,6 +4,17 @@
 #include <vector>
 #include <fstream>
 
+// See types.h and cpr/cpr_types.h for values each enum can take
+// Relevant enums (forward-declared below): parameter_type,
+//                                          runtime_transformation,
+//                                          parameter_transformation,
+//                                          loss_function,
+//                                          parameter_range_partition
+//
+// See cpr/hyperparameter_pack.h for available hyperparameters
+//
+// Use interface below to set/get both hyperparameters and parameters of model
+
 namespace performance_model{
 
 enum class parameter_type;
