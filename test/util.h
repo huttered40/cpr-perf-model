@@ -294,3 +294,62 @@ bool is_verbose(){
     return 1==atoi(env_var_ptr);
   } else return false;
 }
+
+struct evaluation_info{
+  double avg_inference_latency{0};
+  double max_inference_latency{0};
+  // mlogq: arithmetic mean of log-ratios
+  double mlogq_error{0};
+  double max_logq_error{0};
+  // mlogqabs: arithmetic mean of absolute values of log-ratios
+  double mlogqabs_error{0};
+  double max_logqabs_error{0};
+  // mlogq2: arithmetic mean of the square of log-ratios
+  double mlogq2_error{0};
+  double max_logq2_error{0};
+  // maps: arithmetic mean of the absolute percentage error
+  double maps_error{0};
+  double max_aps_error{0};
+};
+
+void evaluate(int nparam, int size, std::vector<double>& runtimes, std::vector<double>& configurations, performance_model::model* interpolator, performance_model::model* extrapolator, bool verbose=false){
+  evaluation_info info;
+  for (int i=0; i<size; i++){
+    double start_inference_latency = get_wall_time();
+    double runtime_prediction = performance_model::predict(&configurations[i*nparam],interpolator,extrapolator);
+    double inference_latency = get_wall_time() - start_inference_latency;
+    info.avg_inference_latency += inference_latency;
+    double local_logq_error = log(runtime_prediction / runtimes[i]);
+    double local_logqabs_error = std::abs(log(runtime_prediction / runtimes[i]));
+    double local_logq2_error = log(runtime_prediction / runtimes[i]); local_logq2_error *= local_logq2_error;
+    double local_aps_error = std::abs(runtime_prediction-runtimes[i]) / runtimes[i];
+    info.mlogq_error += local_logq_error;
+    info.mlogqabs_error += local_logqabs_error;
+    info.mlogq2_error += local_logq2_error;
+    info.maps_error += local_aps_error;
+    info.max_logq_error = std::max(local_logq_error,info.max_logq_error);
+    info.max_logqabs_error = std::max(local_logqabs_error,info.max_logqabs_error);
+    info.max_logq2_error = std::max(local_logq2_error,info.max_logq2_error);
+    info.max_aps_error = std::max(local_aps_error,info.max_aps_error);
+    info.max_inference_latency = std::max(inference_latency,info.max_inference_latency); 
+    if (verbose){
+      std::cout << runtimes[i] << " " << runtime_prediction << " " << local_logq_error << " " << local_logqabs_error << " " << local_logq2_error << " " << inference_latency << std::endl;
+    }
+  }
+  info.mlogq_error /= size;
+  info.mlogqabs_error /= size;
+  info.mlogq2_error /= size;
+  info.maps_error /= size;
+  info.avg_inference_latency /= size;
+
+  std::cout << "MLogQ prediction error: " << info.mlogq_error << "\n";
+  std::cout << "Maximum MLogQ prediction error: " << info.max_logq_error << "\n";
+  std::cout << "MLogQAbs prediction error: " << info.mlogqabs_error << "\n";
+  std::cout << "Maximum MLogQAbs prediction error: " << info.max_logqabs_error << "\n";
+  std::cout << "MLogQ2 prediction error: " << info.mlogq2_error << "\n";
+  std::cout << "Maximum MLogQ2 prediction error: " << info.max_logq2_error << "\n";
+  std::cout << "MAPS prediction error: " << info.maps_error << "\n";
+  std::cout << "Maximum APS prediction error: " << info.max_aps_error << "\n";
+  std::cout << "Average inference latency: " << info.avg_inference_latency << "\n"; 
+  std::cout << "Maximum inference latency: " << info.max_inference_latency << "\n"; 
+}
