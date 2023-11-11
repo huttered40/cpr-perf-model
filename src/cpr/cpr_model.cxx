@@ -103,32 +103,23 @@ void normalize(std::vector<CTF::Tensor<>*>& X){
   int rank = X[0]->lens[0];// choice of index 0 is arbitrary
   for (int j=0; j<rank; j++){
     double weight = 1;
+    std::vector<int> offsets1 = {j,0};
+    std::vector<int> offsets2 = {0,0};
     // Iterate over the j'th column of all d factor matrices
     for (int k=0; k<order; k++){
-      X[k]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
-      double nrm = 0;
-      for (int l=0; l<X[k]->lens[1]; l++){
-        double tmp_val = ptr_to_data[j + X[k]->lens[0]*l];
-        nrm += tmp_val*tmp_val;
-      }
-      nrm = sqrt(nrm);
+      std::vector<int> ends1 = {j+1,static_cast<int>(X[k]->lens[1])};
+      std::vector<int> ends2 = {1,static_cast<int>(X[k]->lens[1])};
+      CTF::Tensor<> temp = X[k]->slice(&offsets1[0],&ends1[0]);
+      double nrm = temp.norm2();
       weight *= nrm;
-      for (int l=0; l<X[k]->lens[1]; l++){
-        ptr_to_data[j + X[k]->lens[0]*l] /= nrm;
-      }
-      X[k]->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-      delete[] ptr_to_data;
-      delete[] ptr_to_indices;
+      X[k]->slice(&offsets1[0],&ends1[0],1./nrm,temp,&offsets2[0],&ends2[0],0);
     }
     weight = pow(weight,1./order);
     for (int k=0; k<order; k++){
-      X[k]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
-      for (int l=0; l<X[k]->lens[1]; l++){
-        ptr_to_data[j + X[k]->lens[0]*l] *= weight;
-      }
-      X[k]->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-      delete[] ptr_to_data;
-      delete[] ptr_to_indices;
+      std::vector<int> ends1 = {j+1,static_cast<int>(X[k]->lens[1])};
+      std::vector<int> ends2 = {1,static_cast<int>(X[k]->lens[1])};
+      CTF::Tensor<> temp = X[k]->slice(&offsets1[0],&ends1[0]);
+      X[k]->slice(&offsets1[0],&ends1[0],weight,temp,&offsets2[0],&ends2[0],0);
     }
   }
 }
