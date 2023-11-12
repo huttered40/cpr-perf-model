@@ -27,6 +27,50 @@
 
 namespace performance_model{
 
+template<typename dtype>
+void sparse_inv(CTF::Tensor<dtype>* T){
+  IASSERT(T->is_sparse);
+  int64_t npair = T->nnz_loc;
+  CTF::Pair<dtype> * pairs = (CTF::Pair<dtype> *)T->data;
+  for(int64_t i=0;i<npair;i++){
+     pairs[i].d = 1./pairs[i].d;
+  }
+}
+
+template<typename dtype>
+void sparse_add1(CTF::Tensor<dtype>* T){
+  IASSERT(T->is_sparse);
+  int64_t npair = T->nnz_loc;
+  CTF::Pair<dtype> * pairs = (CTF::Pair<dtype> *)T->data;
+  for(int64_t i=0;i<npair;i++){
+     pairs[i].d = 1.+pairs[i].d;
+  }
+}
+
+template<typename dtype>
+void sparse_copy(CTF::Tensor<dtype>* T1, CTF::Tensor<dtype>* T2){
+  IASSERT(T1->is_sparse);
+  IASSERT(T2->is_sparse);
+  int64_t npair1 = T1->nnz_loc;
+  CTF::Pair<dtype> * pairs1 = (CTF::Pair<dtype> *)T1->data;
+  int64_t npair2 = T2->nnz_loc;
+  CTF::Pair<dtype> * pairs2 = (CTF::Pair<dtype> *)T2->data;
+  IASSERT(npair1==npair2);
+  for(int64_t i=0;i<npair1;i++){
+     pairs1[i].d = pairs2[i].d;
+  }
+}
+
+template<typename dtype>
+void sparse_neg(CTF::Tensor<dtype>* T){
+  IASSERT(T->is_sparse);
+  int64_t npair = T->nnz_loc;
+  CTF::Pair<dtype> * pairs = (CTF::Pair<dtype> *)T->data;
+  for(int64_t i=0;i<npair;i++){
+     pairs[i].d = (-1.)*pairs[i].d;
+  }
+}
+
 double multilinear_product(const double* multi_vector, const int* cells, const int* mode_lengths, int order, int rank){
   double tensor_elem_prediction = 0.;
   for (int j=0; j<rank; j++){
@@ -132,29 +176,22 @@ struct MLogQ2{
         std::vector<int> mode_list(A.size());
         for (int j=0; j<A.size(); j++) mode_list[j]=j;
         CTF::TTTP(&M,A.size(),&mode_list[0],&A[0],true);
-        auto M_reciprocal1 = M;
-        auto M_reciprocal2 = M;
-        auto M_reciprocal3 = *T;
-        auto M_reciprocal4 = M;
+        CTF::Tensor<> M_reciprocal3 = *T;
 
         char start_char = 'a';
         std::string full_idx_str;
         for (int i = 0; i < A.size(); ++i){
           full_idx_str += start_char++;
         }
-        CTF::Function<> inv([](double d) -> double { return 1./d; });
-        CTF::Function<> neg_inv([](double d) -> double { return -1./d; });
-        CTF::Function<> square_inv([](double d) -> double { return 1./(d*d); });
-        CTF::Function<> add_one([](double d) -> double { return 1.+d; });
-        M_reciprocal1[full_idx_str.c_str()] = neg_inv(M[full_idx_str.c_str()]);
-        //TODO: Try to just multiply M_reciprocal1 * M_reciprocal1
-        M_reciprocal2[full_idx_str.c_str()] = square_inv(M[full_idx_str.c_str()]);
-        M_reciprocal4[full_idx_str.c_str()] = inv(M[full_idx_str.c_str()]);
-        CTF::Sparse_mul(&M_reciprocal3,&M_reciprocal4);
+        sparse_inv(&M);
+        CTF::Sparse_mul(&M_reciprocal3,&M);
+        sparse_neg(&M);
         CTF::Sparse_log(&M_reciprocal3);
-        (*Hessian)[full_idx_str.c_str()] = add_one(M_reciprocal3[full_idx_str.c_str()]);
-        CTF::Sparse_mul(&M_reciprocal3,&M_reciprocal1);
-        CTF::Sparse_mul(Hessian,&M_reciprocal2);
+        sparse_copy(Hessian,&M_reciprocal3);
+        sparse_add1(Hessian);
+        CTF::Sparse_mul(&M_reciprocal3,&M);
+        CTF::Sparse_mul(&M,&M);
+        CTF::Sparse_mul(Hessian,&M);
 
         std::vector<CTF::Tensor<>*> lst_mat;
         std::vector<int> fm_mode_types(2,NS);
@@ -423,13 +460,7 @@ double cpd_als(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
     // O - sparsity pattern encoded as a sparse matrix
     // T_in - sparse tensor of data
     // Assumption is that the error is MSE with optional regularization
-    int64_t nnz;
-    int64_t num_nnz_elems,num_nnz_elems2;
-    int64_t* ptr_to_indices,*ptr_to_indices2;
-    double* ptr_to_data,*ptr_to_data2;
-    O->get_local_data(&nnz,&ptr_to_indices,&ptr_to_data,true);
-    delete[] ptr_to_data;
-    delete[] ptr_to_indices;
+    int64_t nnz = O->nnz_loc;
     double err=100000000.;
     int n_newton_iterations=0;
     for (int i=0; i<max_nsweeps; i++){
@@ -507,12 +538,7 @@ double cpd_als_strictly_increasing(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Ten
 
 double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, double factor_matrix_convergence_tolerance, int max_newton_iter, double barrier_start=1e1, double barrier_stop=1e-11, double barrier_reduction_factor=8, loss_function _loss_function_=loss_function::MLOGQ2){
     assert(_loss_function_ == loss_function::MLOGQ2);
-    int64_t nnz,num_nnz_elems;
-    int64_t* ptr_to_indices;
-    double* ptr_to_data;
-    O->get_local_data(&nnz,&ptr_to_indices,&ptr_to_data,true);
-    delete[] ptr_to_data;
-    delete[] ptr_to_indices;
+    int64_t nnz = O->nnz_loc;
     reg *= nnz;
     barrier_start *= nnz;
     barrier_stop *= nnz;
@@ -875,7 +901,6 @@ cpr_model::cpr_model(int nparam, const parameter_type* parameter_types, const hy
 //  this->interval_spacing.resize(this->order); for (int i=0; i<this->order; i++) this->interval_spacing[i] = _hyperparameters->_partition_spacing[i];
   for (int i=0; i<this->m_nparam; i++){
     if (this->param_types[i]==parameter_type::NUMERICAL) this->numerical_modes.push_back(i);
-    else this->categorical_modes.push_back(i);
   }
 
   this->m_is_valid=false;
