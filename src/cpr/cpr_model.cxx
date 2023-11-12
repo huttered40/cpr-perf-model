@@ -382,29 +382,12 @@ struct MSE{
   // Notice that grad should be negative, but it is not!
   //         This is taken into account when we subtract the step from the FM in 'step(..)'
   // Notice: no factors of 2. These are divided away automatically, as both the loss, regularization terms, etc. have them.
-
-  int64_t num_nnz_elems,num_nnz_elems2;
-  int64_t* ptr_to_indices,*ptr_to_indices2;
-  double* ptr_to_data,*ptr_to_data2;
-  lst_mat[num]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
-  A[num]->get_local_data(&num_nnz_elems2,&ptr_to_indices2,&ptr_to_data2,false);
-  assert(num_nnz_elems==num_nnz_elems2);
-  for (int i=0; i<num_nnz_elems; i++){
-    ptr_to_data[i] = ptr_to_data[i] - reg*ptr_to_data2[i];
-  }
-  grad->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-  assert(ptr_to_data != ptr_to_data2);
-  delete[] ptr_to_data;
-  delete[] ptr_to_data2;
-  delete[] ptr_to_indices;
-  delete[] ptr_to_indices2;
+  CTF::Function<> gradient_update([&reg](double d1, double d2) -> double { return d1-reg*d2; });
+  (*grad)["ij"] = gradient_update((*lst_mat[num])["ij"],(*A[num])["ij"]);
   delete lst_mat[num];
  }
 
     static void step(CTF::World* dw, CTF::Tensor<>* T, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*>& A, double reg, int64_t nnz){
-        int64_t num_nnz_elems;
-        int64_t* ptr_to_indices;
-        double* ptr_to_data;
         std::vector<int> fm_mode_types(2,NS);
         std::vector<int> fm_mode_lengths(2,0);
         // Sweep over each factor matrix, stored as an entry in list 'A'
@@ -426,10 +409,7 @@ struct MSE{
             CTF::Tensor<> g(2,&fm_mode_lengths[0],&fm_mode_types[0],*dw);
             MSE::Get_RHS(dw,T,O,A,i,reg*nnz,&g);
             CTF::Solve_Factor(O,&lst_mat[0],&g,i,true,reg*nnz,0,0);
-            lst_mat[i]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
-            A[i]->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-            delete[] ptr_to_data;
-            delete[] ptr_to_indices;
+            (*A[i])["ij"] = (*lst_mat[i])["ij"];
             delete lst_mat[i];
         }
         // Updated factor matrix filled in via pointer, so return nothing
@@ -1273,12 +1253,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
        // For interpolation, we first minimize mean squared error using log-transformed data
        auto _T_ = Tsparse;
        if (_hyperparameters->_runtime_transformation == runtime_transformation::LOG){
-           _T_.get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
-           assert(num_nnz_elems == training_nodes.size());
-           for (int j=0; j<num_nnz_elems; j++) ptr_to_data[j] = log(ptr_to_data[j]);
-           _T_.write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-           delete[] ptr_to_data;
-           delete[] ptr_to_indices;
+         CTF::Sparse_log(&_T_); 
        }
 
       if (_hyperparameters->_loss_function == loss_function::MSE){
