@@ -58,8 +58,8 @@ int main(int argc, char** argv){
   performance_model::cprg_hyperparameter_pack extrapolator_pack(nparam);
   set_cprg_param_pack(nparam,extrapolator_pack,verbose);
   for (int i=3; i<nparam; i++){
-    interpolator_pack._partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
-    extrapolator_pack._partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
+    interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
+    extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
   }
 
   performance_model::model* interpolator = new performance_model::cpr_model(nparam,&param_types[0],&interpolator_pack);

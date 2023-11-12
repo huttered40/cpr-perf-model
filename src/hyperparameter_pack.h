@@ -18,7 +18,7 @@ enum class loss_function;
 
 class hyperparameter_pack{
 public:
-  hyperparameter_pack(int nparam);
+  hyperparameter_pack(int t_nparam);
   hyperparameter_pack(const hyperparameter_pack& rhs);
   virtual ~hyperparameter_pack();
   hyperparameter_pack& operator=(const hyperparameter_pack& rhs) = delete;
@@ -27,14 +27,14 @@ public:
   virtual void write_to_file(std::ofstream& file_path) const;
   virtual void read_from_file(std::ifstream& file_path);
 
-  loss_function _loss_function;
-  parameter_transformation _parameter_transformation;
-  runtime_transformation _runtime_transformation;
-  MPI_Comm _cm_training;
-  MPI_Comm _cm_data;
-  bool _aggregate_obs_across_communicator;
-  int _nparam;
-  int _min_num_distinct_observed_configurations;
+  loss_function loss;
+  parameter_transformation parameter_transform;
+  runtime_transformation runtime_transform;
+  MPI_Comm cm_training;
+  MPI_Comm cm_data;
+  bool aggregate_obs_across_communicator;
+  int nparam;
+  int min_num_distinct_observed_configurations;
 };
 
 };

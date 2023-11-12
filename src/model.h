@@ -37,7 +37,6 @@ public:
   model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack);
   model(const model& rhs) = delete;
   model& operator=(const model& rhs) = delete;
-  //TODO: What about std::vector<parameter_range_partition> interval_spacing? This is specific to CPR, not to all partitions
   virtual ~model();
   virtual double predict(const double* configuration) const;
   virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset=false, model_fit_info* fit_info = nullptr) = 0;
@@ -56,10 +55,10 @@ protected:
   void read_from_file(std::ifstream& file);
 
   // Characteristics of the input data, NOT the model itself.
-  int m_nparam;
+  int nparam;
   parameter_type* param_types;
-  double* parameter_range_max;
-  double* parameter_range_min;
+  double* param_range_max;
+  double* param_range_min;
   bool allocated_data;
   int num_distinct_configurations;
 

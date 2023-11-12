@@ -63,62 +63,62 @@ void set_cpr_param_pack(int nparam, performance_model::cpr_hyperparameter_pack& 
   if (env_var_ptr != NULL){
     //TODO: Replace with strcmp
     if (std::string(env_var_ptr) == "GEOMETRIC"){
-      for (int i=0; i<nparam; i++) arg_pack._partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
+      for (int i=0; i<nparam; i++) arg_pack.partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
     }
     else if (std::string(env_var_ptr) == "UNIFORM"){
-      for (int i=0; i<nparam; i++) arg_pack._partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
+      for (int i=0; i<nparam; i++) arg_pack.partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
     }
     else if (std::string(env_var_ptr) == "SINGLE"){
-      for (int i=0; i<nparam; i++) arg_pack._partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
+      for (int i=0; i<nparam; i++) arg_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
     }
     else if (std::string(env_var_ptr) == "AUTOMATIC"){
-      for (int i=0; i<nparam; i++) arg_pack._partition_spacing[i] = performance_model::parameter_range_partition::AUTOMATIC;
+      for (int i=0; i<nparam; i++) arg_pack.partition_spacing[i] = performance_model::parameter_range_partition::AUTOMATIC;
     }
     else custom_assert(false,"Invalid option for ..\n");
   }
 
   env_var_ptr = std::getenv(hyperparameter_options[1].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._partitions_per_dimension = atoi(env_var_ptr);
-    custom_assert(arg_pack._partitions_per_dimension>0, "Invalid option for CPPMI_PARTITIONS_PER_DIMENSION\n");
+    arg_pack.partitions_per_dimension = atoi(env_var_ptr);
+    custom_assert(arg_pack.partitions_per_dimension>0, "Invalid option for CPPMI_PARTITIONS_PER_DIMENSION\n");
   }
-  if (verbose) std::cout << arg_pack._partitions_per_dimension << "\n";
+  if (verbose) std::cout << arg_pack.partitions_per_dimension << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[2].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._observations_per_partition = atoi(env_var_ptr);
-    custom_assert(arg_pack._observations_per_partition>0, "Invalid option for CPPMI_OBS_PER_PARTITION\n");
+    arg_pack.observations_per_partition = atoi(env_var_ptr);
+    custom_assert(arg_pack.observations_per_partition>0, "Invalid option for CPPMI_OBS_PER_PARTITION\n");
   }
-  if (verbose) std::cout << arg_pack._observations_per_partition << std::endl;
+  if (verbose) std::cout << arg_pack.observations_per_partition << std::endl;
 
   for (int i=0; i<nparam; i++){
-    if (arg_pack._partition_spacing[i] == performance_model::parameter_range_partition::AUTOMATIC){
-      arg_pack._partition_info[i] = arg_pack._observations_per_partition;
+    if (arg_pack.partition_spacing[i] == performance_model::parameter_range_partition::AUTOMATIC){
+      arg_pack.partition_info[i] = arg_pack.observations_per_partition;
     }
-    else if (arg_pack._partition_spacing[i] == performance_model::parameter_range_partition::GEOMETRIC || arg_pack._partition_spacing[i] == performance_model::parameter_range_partition::UNIFORM){
-      arg_pack._partition_info[i] = arg_pack._partitions_per_dimension;
+    else if (arg_pack.partition_spacing[i] == performance_model::parameter_range_partition::GEOMETRIC || arg_pack.partition_spacing[i] == performance_model::parameter_range_partition::UNIFORM){
+      arg_pack.partition_info[i] = arg_pack.partitions_per_dimension;
     }
-    else if (arg_pack._partition_spacing[i] == performance_model::parameter_range_partition::SINGLE){
+    else if (arg_pack.partition_spacing[i] == performance_model::parameter_range_partition::SINGLE){
       // if interval_spacing[i] == parameter_range_partition::SINGLE, its corresponding entry in partitions_per_dim_info is not parsed.
-      arg_pack._partition_info[i] = -1;
+      arg_pack.partition_info[i] = -1;
     }
   }
   if (verbose){
-    for (int i=0; i<nparam; i++) std::cout << arg_pack._partition_info[i] << " ";
+    for (int i=0; i<nparam; i++) std::cout << arg_pack.partition_info[i] << " ";
     std::cout << "\n";
   }
 
   env_var_ptr = std::getenv(hyperparameter_options[3].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._cp_rank = atoi(env_var_ptr);
-    custom_assert(arg_pack._cp_rank >= 1, "Invalid option for CPPMI_CP_RANK\n");
+    arg_pack.cp_rank = atoi(env_var_ptr);
+    custom_assert(arg_pack.cp_rank >= 1, "Invalid option for CPPMI_CP_RANK\n");
   }
-  if (verbose) std::cout << arg_pack._cp_rank << "\n";
+  if (verbose) std::cout << arg_pack.cp_rank << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[4].c_str());
   if (env_var_ptr != NULL){
-    if (std::string(env_var_ptr) == "NONE") arg_pack._runtime_transformation = performance_model::runtime_transformation::NONE;
-    else if (std::string(env_var_ptr) == "LOG") arg_pack._runtime_transformation = performance_model::runtime_transformation::LOG;
+    if (std::string(env_var_ptr) == "NONE") arg_pack.runtime_transform = performance_model::runtime_transformation::NONE;
+    else if (std::string(env_var_ptr) == "LOG") arg_pack.runtime_transform = performance_model::runtime_transformation::LOG;
     else custom_assert(false,"Invalid option for CPPMI_RUNTIME_TRANSFORM\n");
     //custom_assert(arg_pack.response_transform>=0 && arg_pack.response_transform<=1, "Invalid option for CPPMI_RUNTIME_TRANSFORM\n");
   }
@@ -126,8 +126,8 @@ void set_cpr_param_pack(int nparam, performance_model::cpr_hyperparameter_pack& 
 
   env_var_ptr = std::getenv(hyperparameter_options[5].c_str());
   if (env_var_ptr != NULL){
-    if (std::string(env_var_ptr) == "NONE") arg_pack._parameter_transformation = performance_model::parameter_transformation::NONE;
-    else if (std::string(env_var_ptr) == "LOG") arg_pack._parameter_transformation = performance_model::parameter_transformation::LOG;
+    if (std::string(env_var_ptr) == "NONE") arg_pack.parameter_transform = performance_model::parameter_transformation::NONE;
+    else if (std::string(env_var_ptr) == "LOG") arg_pack.parameter_transform = performance_model::parameter_transformation::LOG;
     else custom_assert(false,"Invalid option for CPPMI_PARAMETER_TRANSFORM\n");
     //custom_assert(arg_pack.feature_transform>=0 && arg_pack.feature_transform<=1, "Invalid option for CPPMI_PARAMETER_TRANSFORM");
   }
@@ -135,112 +135,112 @@ void set_cpr_param_pack(int nparam, performance_model::cpr_hyperparameter_pack& 
 
   env_var_ptr = std::getenv(hyperparameter_options[6].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._max_partition_spacing_factor = atof(env_var_ptr);
-    custom_assert(arg_pack._max_partition_spacing_factor > 1., "Invalid option for CPPMI_MAX_SPACING_FACTOR\n");
+    arg_pack.max_partition_spacing_factor = atof(env_var_ptr);
+    custom_assert(arg_pack.max_partition_spacing_factor > 1., "Invalid option for CPPMI_MAX_SPACING_FACTOR\n");
   }
-  if (verbose) std::cout << arg_pack._max_partition_spacing_factor << "\n";
+  if (verbose) std::cout << arg_pack.max_partition_spacing_factor << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[7].c_str());
   if (env_var_ptr != NULL){
-    if (std::string(env_var_ptr) == "MSE") { arg_pack._loss_function = performance_model::loss_function::MSE; }
-    else if (std::string(env_var_ptr) == "MLogQ2") { arg_pack._loss_function = performance_model::loss_function::MLOGQ2; }
+    if (std::string(env_var_ptr) == "MSE") { arg_pack.loss = performance_model::loss_function::MSE; }
+    else if (std::string(env_var_ptr) == "MLogQ2") { arg_pack.loss = performance_model::loss_function::MLOGQ2; }
     else custom_assert(false,"Invalid option for CPPMI_LOSS_FUNCTION\n");
   }
   //if (verbose) std::cout << arg_pack.loss_function_1 << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[8].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._regularization = atof(env_var_ptr);
-    custom_assert(arg_pack._regularization >= 0, "Invalid option for CPPMI_REGULARIZATION\n");
+    arg_pack.regularization = atof(env_var_ptr);
+    custom_assert(arg_pack.regularization >= 0, "Invalid option for CPPMI_REGULARIZATION\n");
   }
-  if (verbose) std::cout << arg_pack._regularization << "\n";
+  if (verbose) std::cout << arg_pack.regularization << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[9].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._max_num_re_inits = atoi(env_var_ptr);
-    custom_assert(arg_pack._max_num_re_inits >= 0, "Invalid option for CPPMI_MAX_NUM_RE_INITS\n");
+    arg_pack.max_num_re_inits = atoi(env_var_ptr);
+    custom_assert(arg_pack.max_num_re_inits >= 0, "Invalid option for CPPMI_MAX_NUM_RE_INITS\n");
   }
-  if (verbose) std::cout << arg_pack._max_num_re_inits << "\n";
+  if (verbose) std::cout << arg_pack.max_num_re_inits << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[10].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._optimization_convergence_tolerance_for_re_init = atof(env_var_ptr);
-    custom_assert(arg_pack._optimization_convergence_tolerance_for_re_init > 0, "Invalid option for CPPMI_OPTIMIZATION_CONVERGENCE_TOLERANCE_FOR_RE_INIT\n");
+    arg_pack.optimization_convergence_tolerance_for_re_init = atof(env_var_ptr);
+    custom_assert(arg_pack.optimization_convergence_tolerance_for_re_init > 0, "Invalid option for CPPMI_OPTIMIZATION_CONVERGENCE_TOLERANCE_FOR_RE_INIT\n");
   }
-  if (verbose) std::cout << arg_pack._optimization_convergence_tolerance_for_re_init << "\n";
+  if (verbose) std::cout << arg_pack.optimization_convergence_tolerance_for_re_init << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[11].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._interpolation_factor_tolerance = atof(env_var_ptr);
-    custom_assert(arg_pack._interpolation_factor_tolerance >= 0, "Invalid option for CPPMI_INTERPOLATION_FACTOR_TOL\n");
+    arg_pack.interpolation_factor_tolerance = atof(env_var_ptr);
+    custom_assert(arg_pack.interpolation_factor_tolerance >= 0, "Invalid option for CPPMI_INTERPOLATION_FACTOR_TOL\n");
   }
-  if (verbose) std::cout << arg_pack._interpolation_factor_tolerance << "\n";
+  if (verbose) std::cout << arg_pack.interpolation_factor_tolerance << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[12].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._min_num_distinct_observed_configurations = atoi(env_var_ptr);
-    custom_assert(arg_pack._min_num_distinct_observed_configurations >= 1, "Invalid option for CPPMI_MIN_NUM_OBS_FOR_TRAINING\n");
+    arg_pack.min_num_distinct_observed_configurations = atoi(env_var_ptr);
+    custom_assert(arg_pack.min_num_distinct_observed_configurations >= 1, "Invalid option for CPPMI_MIN_NUM_OBS_FOR_TRAINING\n");
   }
-  if (verbose) std::cout << arg_pack._min_num_distinct_observed_configurations << "\n";
+  if (verbose) std::cout << arg_pack.min_num_distinct_observed_configurations << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[13].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._optimization_barrier_start = atof(env_var_ptr);
-    custom_assert(arg_pack._optimization_barrier_start >= 0, "Invalid option for CPPMI_OPTIMIZATION_BARRIER_START\n");
+    arg_pack.optimization_barrier_start = atof(env_var_ptr);
+    custom_assert(arg_pack.optimization_barrier_start >= 0, "Invalid option for CPPMI_OPTIMIZATION_BARRIER_START\n");
   }
-  if (verbose) std::cout << arg_pack._optimization_barrier_start << "\n";
+  if (verbose) std::cout << arg_pack.optimization_barrier_start << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[14].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._optimization_barrier_stop = atof(env_var_ptr);
-    custom_assert(arg_pack._optimization_barrier_stop >= 0, "Invalid option for CPPMI_OPTIMIZATION_BARRIER_STOP\n");
-    if (arg_pack._optimization_barrier_start > 0){
-      custom_assert(arg_pack._optimization_barrier_stop < arg_pack._optimization_barrier_start, "Invalid option for CPPMI_OPTIMIZATION_BARRIER_STOP\n");
+    arg_pack.optimization_barrier_stop = atof(env_var_ptr);
+    custom_assert(arg_pack.optimization_barrier_stop >= 0, "Invalid option for CPPMI_OPTIMIZATION_BARRIER_STOP\n");
+    if (arg_pack.optimization_barrier_start > 0){
+      custom_assert(arg_pack.optimization_barrier_stop < arg_pack.optimization_barrier_start, "Invalid option for CPPMI_OPTIMIZATION_BARRIER_STOP\n");
     }
   }
-  if (verbose) std::cout << arg_pack._optimization_barrier_stop << "\n";
+  if (verbose) std::cout << arg_pack.optimization_barrier_stop << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[15].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._optimization_barrier_reduction_factor = atof(env_var_ptr);
-    custom_assert(arg_pack._optimization_barrier_reduction_factor > 1, "Invalid option for CPPMI_BARRIER_REDUCTION_FACTOR\n");
+    arg_pack.optimization_barrier_reduction_factor = atof(env_var_ptr);
+    custom_assert(arg_pack.optimization_barrier_reduction_factor > 1, "Invalid option for CPPMI_BARRIER_REDUCTION_FACTOR\n");
   }
-  if (verbose) std::cout << arg_pack._optimization_barrier_reduction_factor << "\n";
+  if (verbose) std::cout << arg_pack.optimization_barrier_reduction_factor << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[16].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._factor_matrix_optimization_max_num_iterations = atoi(env_var_ptr);
-    custom_assert(arg_pack._factor_matrix_optimization_max_num_iterations >= 0, "Invalid option for CPPMI_FM_MAX_NUM_ITER\n");
+    arg_pack.factor_matrix_optimization_max_num_iterations = atoi(env_var_ptr);
+    custom_assert(arg_pack.factor_matrix_optimization_max_num_iterations >= 0, "Invalid option for CPPMI_FM_MAX_NUM_ITER\n");
   }
-  if (verbose) std::cout << arg_pack._factor_matrix_optimization_max_num_iterations << "\n";
+  if (verbose) std::cout << arg_pack.factor_matrix_optimization_max_num_iterations << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[17].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._factor_matrix_optimization_convergence_tolerance = atof(env_var_ptr);
-    custom_assert(arg_pack._factor_matrix_optimization_convergence_tolerance >=0, "Invalid option for CPPMI_FM_CONVERGENCE_TOL\n");
+    arg_pack.factor_matrix_optimization_convergence_tolerance = atof(env_var_ptr);
+    custom_assert(arg_pack.factor_matrix_optimization_convergence_tolerance >=0, "Invalid option for CPPMI_FM_CONVERGENCE_TOL\n");
   }
-  if (verbose) std::cout << arg_pack._factor_matrix_optimization_convergence_tolerance << "\n";
+  if (verbose) std::cout << arg_pack.factor_matrix_optimization_convergence_tolerance << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[18].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._optimization_convergence_tolerance = atof(env_var_ptr);
-    custom_assert(arg_pack._optimization_convergence_tolerance>0, "Invalid option for CPPMI_SWEEP_TOL\n");
+    arg_pack.optimization_convergence_tolerance = atof(env_var_ptr);
+    custom_assert(arg_pack.optimization_convergence_tolerance>0, "Invalid option for CPPMI_SWEEP_TOL\n");
   }
-  if (verbose) std::cout << arg_pack._optimization_convergence_tolerance << "\n";
+  if (verbose) std::cout << arg_pack.optimization_convergence_tolerance << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[19].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._max_num_optimization_sweeps = atoi(env_var_ptr);
-    custom_assert(arg_pack._max_num_optimization_sweeps>0, "Invalid option for CPPMI_MAX_NUM_SWEEPS\n");
+    arg_pack.max_num_optimization_sweeps = atoi(env_var_ptr);
+    custom_assert(arg_pack.max_num_optimization_sweeps>0, "Invalid option for CPPMI_MAX_NUM_SWEEPS\n");
   }
-  if (verbose) std::cout << arg_pack._max_num_optimization_sweeps << "\n";
+  if (verbose) std::cout << arg_pack.max_num_optimization_sweeps << "\n";
 
   env_var_ptr = std::getenv(hyperparameter_options[20].c_str());
   if (env_var_ptr != NULL){
-    arg_pack._aggregate_obs_across_communicator = (1==atoi(env_var_ptr));
-    //custom_assert(arg_pack._aggregate_obs_across_communicator>0, "Invalid option for CPPMI_AGGREGATE_OBS_ACROSS_COMM\n");
+    arg_pack.aggregate_obs_across_communicator = (1==atoi(env_var_ptr));
+    //custom_assert(arg_pack.aggregate_obs_across_communicator>0, "Invalid option for CPPMI_AGGREGATE_OBS_ACROSS_COMM\n");
   }
-  if (verbose) std::cout << arg_pack._aggregate_obs_across_communicator << "\n";
+  if (verbose) std::cout << arg_pack.aggregate_obs_across_communicator << "\n";
 }
 
 void set_cprg_param_pack(int nparam, performance_model::cprg_hyperparameter_pack& arg_pack, bool verbose){
@@ -250,21 +250,21 @@ void set_cprg_param_pack(int nparam, performance_model::cprg_hyperparameter_pack
 
   char* env_var_ptr = std::getenv("CPPME_MAX_SPLINE_DEGREE");
   if (env_var_ptr != NULL){
-    arg_pack._max_spline_degree = atoi(env_var_ptr);
-    custom_assert(arg_pack._max_spline_degree>0, "Invalid option for CPPME_MAX_SPLINE_DEGREE\n");
+    arg_pack.max_spline_degree = atoi(env_var_ptr);
+    custom_assert(arg_pack.max_spline_degree>0, "Invalid option for CPPME_MAX_SPLINE_DEGREE\n");
   }
-  if (verbose) std::cout << arg_pack._max_spline_degree << "\n";
+  if (verbose) std::cout << arg_pack.max_spline_degree << "\n";
 
   env_var_ptr = std::getenv("CPPME_FACTOR_MATRIX_ELEMENT_TRANSFORM");
   if (env_var_ptr != NULL){
-    if (std::string(env_var_ptr) == "NONE") arg_pack._factor_matrix_element_transformation = performance_model::runtime_transformation::NONE;
-    else if (std::string(env_var_ptr) == "LOG") arg_pack._factor_matrix_element_transformation = performance_model::runtime_transformation::LOG;
+    if (std::string(env_var_ptr) == "NONE") arg_pack.factor_matrix_element_transformation = performance_model::runtime_transformation::NONE;
+    else if (std::string(env_var_ptr) == "LOG") arg_pack.factor_matrix_element_transformation = performance_model::runtime_transformation::LOG;
   }
 
   env_var_ptr = std::getenv("CPPME_FACTOR_MATRIX_UNDERLYING_POSITION_TRANSFORM");
   if (env_var_ptr != NULL){
-    if (std::string(env_var_ptr) == "NONE") arg_pack._factor_matrix_underlying_position_transformation = performance_model::parameter_transformation::NONE;
-    else if (std::string(env_var_ptr) == "LOG") arg_pack._factor_matrix_underlying_position_transformation = performance_model::parameter_transformation::LOG;
+    if (std::string(env_var_ptr) == "NONE") arg_pack.factor_matrix_underlying_position_transformation = performance_model::parameter_transformation::NONE;
+    else if (std::string(env_var_ptr) == "LOG") arg_pack.factor_matrix_underlying_position_transformation = performance_model::parameter_transformation::LOG;
   }
 }
 

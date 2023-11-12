@@ -107,16 +107,16 @@ model_fit_info::~model_fit_info(){
 model::model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack){
   this->hyperparameters = new hyperparameter_pack(*pack);
   this->parameters = new parameter_pack();
-  this->m_nparam = nparam;
+  this->nparam = nparam;
   this->allocated_data = false;
   this->num_distinct_configurations = 0;
   this->param_types = new parameter_type[nparam];
-  this->parameter_range_min = new double[nparam];
-  this->parameter_range_max = new double[nparam];
+  this->param_range_min = new double[nparam];
+  this->param_range_max = new double[nparam];
   for (int i=0; i<nparam; i++){
     this->param_types[i] = parameter_types[i];
-    this->parameter_range_min[i] = DBL_MAX;
-    this->parameter_range_max[i] = DBL_MIN;
+    this->param_range_min[i] = DBL_MAX;
+    this->param_range_max[i] = DBL_MIN;
   }
 }
 double model::predict(const double* configuration) const{
@@ -127,43 +127,42 @@ model::~model(){
   if (this->hyperparameters != nullptr) delete this->hyperparameters;
   if (this->parameters != nullptr) delete this->parameters;
   if (this->param_types != nullptr) delete[] this->param_types;
-  if (this->parameter_range_min != nullptr) delete[] this->parameter_range_min;
-  if (this->parameter_range_max != nullptr) delete[] this->parameter_range_max;
+  if (this->param_range_min != nullptr) delete[] this->param_range_min;
+  if (this->param_range_max != nullptr) delete[] this->param_range_max;
   this->hyperparameters = nullptr;
   this->parameters = nullptr;
   this->param_types = nullptr;
-  this->parameter_range_min = nullptr;
-  this->parameter_range_max = nullptr;
+  this->param_range_min = nullptr;
+  this->param_range_max = nullptr;
 }
 bool model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset, model_fit_info* fit_info){
   int world_size_for_training,world_size_for_data_aggregation;
-  MPI_Comm_size(this->hyperparameters->_cm_training,&world_size_for_training);
-  MPI_Comm_size(this->hyperparameters->_cm_data,&world_size_for_data_aggregation);
+  MPI_Comm_size(this->hyperparameters->cm_training,&world_size_for_training);
+  MPI_Comm_size(this->hyperparameters->cm_data,&world_size_for_data_aggregation);
 
   const double* save_c_ptr = configurations;
   const double* save_r_ptr = runtimes;
 
   this->allocated_data = false;
-  if (this->hyperparameters->_aggregate_obs_across_communicator){
-    this->allocated_data = aggregate_observations(num_configurations,configurations,runtimes,this->m_nparam,this->hyperparameters->_cm_data);
+  if (this->hyperparameters->aggregate_obs_across_communicator){
+    this->allocated_data = aggregate_observations(num_configurations,configurations,runtimes,this->nparam,this->hyperparameters->cm_data);
     if (this->allocated_data){
       assert(configurations != save_c_ptr);
       assert(runtimes != save_r_ptr);
     } else{
       if (num_configurations>0){
-	assert(configurations == save_c_ptr);
-	assert(runtimes == save_r_ptr);
+        assert(configurations == save_c_ptr);
+        assert(runtimes == save_r_ptr);
       }
     }
   }
 
-  //TODO: Average into sample mean here, rather than waiting for later, as we do not need to find a node_key yet!
   // Check how many distinct configurations there are.
   std::set<std::vector<double>> distinct_configuration_dict;
-  std::vector<double> config(this->m_nparam);
+  std::vector<double> config(this->nparam);
   for (int i=0; i<num_configurations; i++){
-    for (int j=0; j<this->m_nparam; j++){
-      config[j]=configurations[i*this->m_nparam+j];
+    for (int j=0; j<this->nparam; j++){
+      config[j]=configurations[i*this->nparam+j];
     }
     distinct_configuration_dict.insert(config);
   }
@@ -171,7 +170,7 @@ bool model::train(int& num_configurations, const double*& configurations, const 
   if (fit_info != nullptr) fit_info->num_distinct_configurations = this->num_distinct_configurations;
   // No point in training if the sample size is so small
   // We only really care about distinct configurations
-  if (distinct_configuration_dict.size() < this->hyperparameters->_min_num_distinct_observed_configurations){
+  if (distinct_configuration_dict.size() < this->hyperparameters->min_num_distinct_observed_configurations){
     if (this->allocated_data){
       delete[] configurations;
       delete[] runtimes;
@@ -179,16 +178,16 @@ bool model::train(int& num_configurations, const double*& configurations, const 
     }
     return false;
   }
-  distinct_configuration_dict.clear();// TODO: Later don't do this
+  distinct_configuration_dict.clear();
 
   for (int i=0; i<num_configurations; i++){
-    for (int j=0; j<this->m_nparam; j++){
-      this->parameter_range_min[j]=std::min(this->parameter_range_min[j],configurations[i*this->m_nparam+j]);
-      this->parameter_range_max[j]=std::max(this->parameter_range_max[j],configurations[i*this->m_nparam+j]);
+    for (int j=0; j<this->nparam; j++){
+      this->param_range_min[j]=std::min(this->param_range_min[j],configurations[i*this->nparam+j]);
+      this->param_range_max[j]=std::max(this->param_range_max[j],configurations[i*this->nparam+j]);
     }
   }
-  for (int j=0; j<this->m_nparam; j++){
-    if (this->parameter_range_max[j] < this->parameter_range_min[j]){
+  for (int j=0; j<this->nparam; j++){
+    if (this->param_range_max[j] < this->param_range_min[j]){
       if (this->allocated_data){
         delete[] configurations;
         delete[] runtimes;
@@ -214,19 +213,19 @@ void model::read_from_file(const char* file_path){
 }
 void model::write_to_file(std::ofstream& file) const{
   if (!file.is_open()) return;
-  file << this->m_nparam << "\n";
-  for (int i=0; i<this->m_nparam; i++){
+  file << this->nparam << "\n";
+  for (int i=0; i<this->nparam; i++){
     if (i>0) file << ",";
     if (param_types[i] == parameter_type::NUMERICAL) file << "NUMERICAL";
     else file << "CATEGORICAL";
   } file << "\n";
-  for (int i=0; i<this->m_nparam; i++){
+  for (int i=0; i<this->nparam; i++){
     if (i>0) file << ",";
-    file << parameter_range_min[i];
+    file << param_range_min[i];
   } file << "\n";
-  for (int i=0; i<this->m_nparam; i++){
+  for (int i=0; i<this->nparam; i++){
     if (i>0) file << ",";
-    file << parameter_range_max[i];
+    file << param_range_max[i];
   } file << "\n";
   this->hyperparameters->write_to_file(file);
   this->parameters->write_to_file(file);
@@ -237,38 +236,38 @@ void model::read_from_file(std::ifstream& file){
   int num_input_parameters;
   double temp_range;
   file >> num_input_parameters;
-  assert(this->m_nparam == num_input_parameters);
+  assert(this->nparam == num_input_parameters);
   // NOTE: These arrays would have been allocated upon invocation of model constructor
   // NOTE: If any of these asserts fail, then the user doesn't have enough information regarding the model or underlying kernel/application parameter space that is being read in.
-  assert(this->parameter_range_max != nullptr);
-  assert(this->parameter_range_min != nullptr);
+  assert(this->param_range_max != nullptr);
+  assert(this->param_range_min != nullptr);
   assert(this->param_types != nullptr);
-  for (int i=0; i<this->m_nparam; i++){
-    if (i==(this->m_nparam-1)) getline(file,temp,'\n');
+  for (int i=0; i<this->nparam; i++){
+    if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     if (temp == "NUMERICAL") assert(param_types[i] == parameter_type::NUMERICAL);
     else if (temp == "CATEGORICAL") assert(param_types[i] == parameter_type::CATEGORICAL);
   }
-  for (int i=0; i<this->m_nparam; i++){
-    if (i==(this->m_nparam-1)) getline(file,temp,'\n');
+  for (int i=0; i<this->nparam; i++){
+    if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     temp_range = std::stod(temp);
-    assert(temp_range == parameter_range_min[i]);
+    assert(temp_range == param_range_min[i]);
   }
-  for (int i=0; i<this->m_nparam; i++){
-    if (i==(this->m_nparam-1)) getline(file,temp,'\n');
+  for (int i=0; i<this->nparam; i++){
+    if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     temp_range = std::stod(temp);
-    assert(temp_range == parameter_range_max[i]);
+    assert(temp_range == param_range_max[i]);
   }
   this->hyperparameters->read_from_file(file);
 //  this->parameters->read_from_file(file);
 }
 double model::get_min_observed_parameter_value(int parameter_id) const{
-  return this->parameter_range_min[parameter_id];
+  return this->param_range_min[parameter_id];
 }
 double model::get_max_observed_parameter_value(int parameter_id) const{
-  return this->parameter_range_max[parameter_id];
+  return this->param_range_max[parameter_id];
 }
 void model::get_hyperparameters(hyperparameter_pack& rhs) const{
   assert(0);
@@ -277,7 +276,7 @@ void model::set_hyperparameters(const hyperparameter_pack& pack){
   assert(0);
 }
 int model::get_num_inputs() const{
-  return this->m_nparam;
+  return this->nparam;
 }
 void model::get_parameters(parameter_pack& rhs) const{
   this->parameters->get(rhs);

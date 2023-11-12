@@ -19,11 +19,11 @@ public:
   virtual void write_to_file(std::ofstream& file) const;
   virtual void read_from_file(std::ifstream& file);
 
-  int _partitions_per_dimension;
-  int _observations_per_partition;
-  int* _partition_info;
-  parameter_range_partition* _partition_spacing;
-  double _max_partition_spacing_factor;
+  int partitions_per_dimension;
+  int observations_per_partition;
+  int* partition_info;
+  parameter_range_partition* partition_spacing;
+  double max_partition_spacing_factor;
 };
 
 class cpr_hyperparameter_pack : public piecewise_hyperparameter_pack{
@@ -38,18 +38,18 @@ public:
   virtual void write_to_file(std::ofstream& file) const;
   virtual void read_from_file(std::ifstream& file);
 
-  int _cp_rank;
-  double _regularization;
-  int _max_num_re_inits;
-  double _optimization_convergence_tolerance_for_re_init;
-  double _interpolation_factor_tolerance;
-  int _max_num_optimization_sweeps;
-  double _optimization_convergence_tolerance;
-  int _factor_matrix_optimization_max_num_iterations;
-  double _factor_matrix_optimization_convergence_tolerance;
-  double _optimization_barrier_start;
-  double _optimization_barrier_stop;
-  double _optimization_barrier_reduction_factor;
+  int cp_rank;
+  double regularization;
+  int max_num_re_inits;
+  double optimization_convergence_tolerance_for_re_init;
+  double interpolation_factor_tolerance;
+  int max_num_optimization_sweeps;
+  double optimization_convergence_tolerance;
+  int factor_matrix_optimization_max_num_iterations;
+  double factor_matrix_optimization_convergence_tolerance;
+  double optimization_barrier_start;
+  double optimization_barrier_stop;
+  double optimization_barrier_reduction_factor;
 };
 
 class cprg_hyperparameter_pack : public cpr_hyperparameter_pack{
@@ -64,9 +64,9 @@ public:
   virtual void write_to_file(std::ofstream& file) const;
   virtual void read_from_file(std::ifstream& file);
 
-  int _max_spline_degree;
-  runtime_transformation _factor_matrix_element_transformation;
-  parameter_transformation _factor_matrix_underlying_position_transformation;
+  int max_spline_degree;
+  runtime_transformation factor_matrix_element_transformation;
+  parameter_transformation factor_matrix_underlying_position_transformation;
 };
 
 };

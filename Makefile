@@ -8,16 +8,25 @@ shared: lib/libcpr_perf_model.so
 
 lib/libcpr_perf_model.a:\
 	obj/hyperparameter_pack.o\
-	obj/predict.o\
 	obj/model.o\
 	obj/cpr_hyperparameter_pack.o\
 	obj/parameter_pack.o\
 	obj/cpr_parameter_pack.o\
-	obj/cpr_model.o
+	obj/cpr_model.o\
+	obj/predict.o
 	ar -crs lib/libcpr_perf_model.a obj/hyperparameter_pack.o obj/parameter_pack.o obj/cpr_hyperparameter_pack.o obj/cpr_parameter_pack.o obj/model.o obj/cpr_model.o obj/predict.o $(LIBS)
+	rm obj/*.o
 
-lib/libcpr_perf_model.so: obj/hyperparameter_pack.o obj/predict.o obj/model.o obj/cpr_hyperparameter_pack.o obj/parameter_pack.o obj/cpr_parameter_pack.o obj/cpr_model.o 
+lib/libcpr_perf_model.so:\
+	obj/hyperparameter_pack.o\
+	obj/model.o\
+	obj/cpr_hyperparameter_pack.o\
+	obj/parameter_pack.o\
+	obj/cpr_parameter_pack.o\
+	obj/cpr_model.o\
+	obj/predict.o
 	$(CXX) -shared -o lib/libcpr_perf_model.so obj/model.o obj/cpr_hyperparameter_pack.o obj/predict.o obj/hyperparameter_pack.o obj/parameter_pack.o obj/cpr_parameter_pack.o obj/cpr_model.o $(LDFLAGS) $(LIBS)
+	rm obj/*.o
 
 obj/hyperparameter_pack.o: src/hyperparameter_pack.cxx
 	$(CXX) $(CXXFLAGS) src/hyperparameter_pack.cxx -c -o obj/hyperparameter_pack.o

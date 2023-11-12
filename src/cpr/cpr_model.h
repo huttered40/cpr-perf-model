@@ -1,7 +1,7 @@
 #ifndef __PERFORMANCE_MODEL__CPR_MODEL_H_
 #define __PERFORMANCE_MODEL__CPR_MODEL_H_
 
-#include <vector>//TODO: Remove later
+#include <vector>
 
 #include "../model.h"
 
@@ -69,7 +69,6 @@ protected:
   bool m_is_valid;
   int order;
   std::vector<int> numerical_modes;
-  std::vector<int> categorical_modes;
   std::vector<std::vector<int>> Projected_Omegas;
 };
 

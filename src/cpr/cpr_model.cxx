@@ -13,59 +13,54 @@
 #include "cpr_hyperparameter_pack.h"
 #include "cpr_parameter_pack.h"
 #include "../types.h"
-#include "ctf.hpp"// TODO: Remove this later, add to additional file
-/*
-#include "interface/common.h"
-#include "interface/world.h"
-#include "interface/tensor.h"
-*/
+#include "ctf.hpp"
 #include "../util.h"
 
 #define NUMERICAL_PARAM_MIN_OBS_RANGE 32
-#define MIN_POS_RUNTIME 1e-8		// Essentially a "zero" runtime
+#define MIN_POS_RUNTIME 1e-8  // Essentially a "zero" runtime
 #define AMN_RESET 1e-6
 
 namespace performance_model{
 
-template<typename dtype>
-void sparse_inv(CTF::Tensor<dtype>* T){
+template<typename DataType>
+void sparse_inv(CTF::Tensor<DataType>* T){
   IASSERT(T->is_sparse);
   int64_t npair = T->nnz_loc;
-  CTF::Pair<dtype> * pairs = (CTF::Pair<dtype> *)T->data;
+  CTF::Pair<DataType> * pairs = (CTF::Pair<DataType> *)T->data;
   for(int64_t i=0;i<npair;i++){
      pairs[i].d = 1./pairs[i].d;
   }
 }
 
-template<typename dtype>
-void sparse_add1(CTF::Tensor<dtype>* T){
+template<typename DataType>
+void sparse_add1(CTF::Tensor<DataType>* T){
   IASSERT(T->is_sparse);
   int64_t npair = T->nnz_loc;
-  CTF::Pair<dtype> * pairs = (CTF::Pair<dtype> *)T->data;
+  CTF::Pair<DataType> * pairs = (CTF::Pair<DataType> *)T->data;
   for(int64_t i=0;i<npair;i++){
      pairs[i].d = 1.+pairs[i].d;
   }
 }
 
-template<typename dtype>
-void sparse_copy(CTF::Tensor<dtype>* T1, CTF::Tensor<dtype>* T2){
+template<typename DataType>
+void sparse_copy(CTF::Tensor<DataType>* T1, CTF::Tensor<DataType>* T2){
   IASSERT(T1->is_sparse);
   IASSERT(T2->is_sparse);
   int64_t npair1 = T1->nnz_loc;
-  CTF::Pair<dtype> * pairs1 = (CTF::Pair<dtype> *)T1->data;
+  CTF::Pair<DataType> * pairs1 = (CTF::Pair<DataType> *)T1->data;
   int64_t npair2 = T2->nnz_loc;
-  CTF::Pair<dtype> * pairs2 = (CTF::Pair<dtype> *)T2->data;
+  CTF::Pair<DataType> * pairs2 = (CTF::Pair<DataType> *)T2->data;
   IASSERT(npair1==npair2);
   for(int64_t i=0;i<npair1;i++){
      pairs1[i].d = pairs2[i].d;
   }
 }
 
-template<typename dtype>
-void sparse_neg(CTF::Tensor<dtype>* T){
+template<typename DataType>
+void sparse_neg(CTF::Tensor<DataType>* T){
   IASSERT(T->is_sparse);
   int64_t npair = T->nnz_loc;
-  CTF::Pair<dtype> * pairs = (CTF::Pair<dtype> *)T->data;
+  CTF::Pair<DataType> * pairs = (CTF::Pair<DataType> *)T->data;
   for(int64_t i=0;i<npair;i++){
      pairs[i].d = (-1.)*pairs[i].d;
   }
@@ -98,7 +93,7 @@ double multilinear_product_packed(const double* multi_vector, int nelements, int
   return t_val;
 }
 
-void init_factor_matrix(CTF::Tensor<>* fm, loss_function _loss_function_){
+void init_factor_matrix(CTF::Tensor<>* fm, loss_function t_loss){
   if (fm==nullptr) return;
   //assert(fm != nullptr);
   int64_t num_nnz_elems;
@@ -106,9 +101,8 @@ void init_factor_matrix(CTF::Tensor<>* fm, loss_function _loss_function_){
   double* ptr_to_data;
   int cp_rank = fm->lens[0];
   int mode_length = fm->lens[1];
-  //TODO: Use strcpy instead
-  if (_loss_function_ == loss_function::MSE) fm->fill_random(-1,1);
-  else if (_loss_function_ == loss_function::MLOGQ2) fm->fill_random(0,.01);
+  if (t_loss == loss_function::MSE) fm->fill_random(-1,1);
+  else if (t_loss == loss_function::MLOGQ2) fm->fill_random(0,.01);
   else assert(0);
   // Enforce to be strictly increasing
   fm->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
@@ -123,8 +117,6 @@ void init_factor_matrix(CTF::Tensor<>* fm, loss_function _loss_function_){
 }
 
 void debug_tensor(CTF::Tensor<>* t, const std::string& str){
-/*
-  // Debug
   int64_t num_nnz_elems;
   int64_t* ptr_to_indices;
   double* ptr_to_data;
@@ -134,16 +126,11 @@ void debug_tensor(CTF::Tensor<>* t, const std::string& str){
   std::cout << "\n";
   delete[] ptr_to_data;
   delete[] ptr_to_indices;
-  // End Debug
-*/
 }
 
 // Normalize each column within a factor matrix
 void normalize(std::vector<CTF::Tensor<>*>& X){
   // Re-normalize by iterating over each column of each factor matrix
-  int64_t num_nnz_elems;
-  int64_t* ptr_to_indices;
-  double* ptr_to_data;
   int order = X.size();
   int rank = X[0]->lens[0];// choice of index 0 is arbitrary
   for (int j=0; j<rank; j++){
@@ -453,8 +440,8 @@ struct MSE{
     }
 };
 
-double cpd_als(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, loss_function _loss_function_ = loss_function::MSE){
-    assert(_loss_function_ == loss_function::MSE);
+double cpd_als(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, loss_function t_loss = loss_function::MSE){
+    assert(t_loss == loss_function::MSE);
 
     // X - model parameters, framed as a guess
     // O - sparsity pattern encoded as a sparse matrix
@@ -496,8 +483,8 @@ double cpd_als(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
 }
 
 /*
-double cpd_als_strictly_increasing(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, double factor_matrix_convergence_tolerance, int max_newton_iter, double barrier_start=1e1, double barrier_stop=1e-11, double barrier_reduction_factor=8, loss_function _loss_function_= loss_function::MSE_Strictly_Increasing){
-    assert(_loss_function_ == loss_function::MSE_Strictly_Increasing);
+double cpd_als_strictly_increasing(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, double factor_matrix_convergence_tolerance, int max_newton_iter, double barrier_start=1e1, double barrier_stop=1e-11, double barrier_reduction_factor=8, loss_function t_loss= loss_function::MSE_Strictly_Increasing){
+    assert(t_loss == loss_function::MSE_Strictly_Increasing);
     int64_t nnz,num_nnz_elems;
     int64_t* ptr_to_indices;
     double* ptr_to_data;
@@ -536,8 +523,8 @@ double cpd_als_strictly_increasing(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Ten
 }
 */
 
-double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, double factor_matrix_convergence_tolerance, int max_newton_iter, double barrier_start=1e1, double barrier_stop=1e-11, double barrier_reduction_factor=8, loss_function _loss_function_=loss_function::MLOGQ2){
-    assert(_loss_function_ == loss_function::MLOGQ2);
+double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, double factor_matrix_convergence_tolerance, int max_newton_iter, double barrier_start=1e1, double barrier_stop=1e-11, double barrier_reduction_factor=8, loss_function t_loss=loss_function::MLOGQ2){
+    assert(t_loss == loss_function::MLOGQ2);
     int64_t nnz = O->nnz_loc;
     reg *= nnz;
     barrier_start *= nnz;
@@ -586,7 +573,7 @@ double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
             break;
         }
 */
-        if (i>0 && std::abs(err)<model_convergence_tolerance) break;
+        if (err < model_convergence_tolerance) break;
         err_prev = err;
 /*
         for (int j=0; j<X.size(); j++){
@@ -684,7 +671,7 @@ int get_interval_index(double val, int num_nodes, const double* _nodes, paramete
 
 int get_node_index(double val, int num_nodes, const double* _nodes, parameter_range_partition node_spacing_type){
   //NOTE: This function is different than the function in python version!
-  if (node_spacing_type==parameter_range_partition::SINGLE) assert(0);// I just want to be alerted to this, TODO: Remove later
+  if (node_spacing_type==parameter_range_partition::SINGLE) assert(0);
   if (val >= _nodes[num_nodes-1]) return num_nodes-1;
   if (val <= _nodes[0]) return 0;
   // Binary Search
@@ -789,7 +776,7 @@ void cpr_model::init(
     _parameters->knot_index_offsets.resize(this->order);
     _parameters->knot_index_offsets[0]=0;
     for (int i=0; i<this->order; i++){
-        if (_hyperparameters->_partition_spacing[i]==parameter_range_partition::SINGLE){
+        if (_hyperparameters->partition_spacing[i]==parameter_range_partition::SINGLE){
           assert(features != nullptr);
           // Valid for parameter types: parameter_type::CATEGORICAL and parameter_type::NUMERICAL
           // Each distinct value is a distinct node
@@ -797,27 +784,27 @@ void cpr_model::init(
           std::vector<double> temp_nodes;
           std::vector<double> features_copy(num_configurations);
           for (int j=0; j<num_configurations; j++){
-            features_copy[j] = std::max(features[this->order*j+i],this->parameter_range_min[i]);
+            features_copy[j] = std::max(features[this->order*j+i],this->param_range_min[i]);
           }
           std::sort(features_copy.begin(),features_copy.end());
           features_copy.erase(std::unique(features_copy.begin(),features_copy.end()),features_copy.end());// remove duplicates
           _parameters->num_partitions_per_dimension[i] = features_copy.size();
-	  for (auto it : features_copy){
+          for (auto it : features_copy){
             _parameters->knot_positions.push_back(it);
           }
           if (i<(this->order-1)) _parameters->knot_index_offsets[i+1]=features_copy.size()+_parameters->knot_index_offsets[i];
         }
-	else if (_hyperparameters->_partition_spacing[i] == parameter_range_partition::UNIFORM || _hyperparameters->_partition_spacing[i] == parameter_range_partition::GEOMETRIC){
+        else if (_hyperparameters->partition_spacing[i] == parameter_range_partition::UNIFORM || _hyperparameters->partition_spacing[i] == parameter_range_partition::GEOMETRIC){
           assert(this->param_types[i]==parameter_type::NUMERICAL);
-	  auto temp_nodes = generate_nodes(this->parameter_range_min[i],this->parameter_range_max[i],cells_info[i]+1,_hyperparameters->_partition_spacing[i],this->param_types[i]);
+          auto temp_nodes = generate_nodes(this->param_range_min[i],this->param_range_max[i],cells_info[i]+1,_hyperparameters->partition_spacing[i],this->param_types[i]);
           _parameters->num_partitions_per_dimension[i] = temp_nodes.size() - 1;
-	  for (auto it : temp_nodes){
-            if (_hyperparameters->_partition_spacing[i]==parameter_range_partition::GEOMETRIC) assert(it>0);
+          for (auto it : temp_nodes){
+            if (_hyperparameters->partition_spacing[i]==parameter_range_partition::GEOMETRIC) assert(it>0);
             _parameters->knot_positions.push_back(it);
           }
           assert(_parameters->num_partitions_per_dimension[i]>0);
           if (i<(this->order-1)) _parameters->knot_index_offsets[i+1]=temp_nodes.size()+_parameters->knot_index_offsets[i];
-        } else if (_hyperparameters->_partition_spacing[i] == parameter_range_partition::AUTOMATIC){
+        } else if (_hyperparameters->partition_spacing[i] == parameter_range_partition::AUTOMATIC){
             assert(features != nullptr);
             assert(this->param_types[i]==parameter_type::NUMERICAL);
             assert(num_configurations > 0);
@@ -825,37 +812,37 @@ void cpr_model::init(
             std::vector<double> temp_nodes;
             std::vector<double> features_copy(num_configurations);
             for (int j=0; j<num_configurations; j++){
-              features_copy[j] = std::max(features[this->order*j+i],this->parameter_range_min[i]);
+              features_copy[j] = std::max(features[this->order*j+i],this->param_range_min[i]);
             }
             std::sort(features_copy.begin(),features_copy.end());
             features_copy.erase(std::unique(features_copy.begin(),features_copy.end()),features_copy.end());// remove duplicates
-            temp_nodes.push_back(this->parameter_range_min[i]);
+            temp_nodes.push_back(this->param_range_min[i]);
             // Invariant: don't add the first knot in a range, and the end-points (as indices into features_copy) are always valid, and duplicate values are not present.
-            partition_space(max_num_distinct_obs_per_cell,0,features_copy.size()-1,features_copy,temp_nodes,_hyperparameters->_max_partition_spacing_factor);
-            if (temp_nodes.size()==1 || temp_nodes[temp_nodes.size()-1] < this->parameter_range_max[i]){
-              temp_nodes.push_back(this->parameter_range_max[i]);
+            partition_space(max_num_distinct_obs_per_cell,0,features_copy.size()-1,features_copy,temp_nodes,_hyperparameters->max_partition_spacing_factor);
+            if (temp_nodes.size()==1 || temp_nodes[temp_nodes.size()-1] < this->param_range_max[i]){
+              temp_nodes.push_back(this->param_range_max[i]);
             }
             assert(temp_nodes.size()>1);
-            assert(temp_nodes[temp_nodes.size()-1] == this->parameter_range_max[i]);
+            assert(temp_nodes[temp_nodes.size()-1] == this->param_range_max[i]);
             // Below handles a corner case in which all parameter values are the same.
             if (temp_nodes.size()==2 && temp_nodes[1]==temp_nodes[0]){
               assert(0);
               ++temp_nodes[1];
             }
-            assert(temp_nodes[0]==this->parameter_range_min[i]);
+            assert(temp_nodes[0]==this->param_range_min[i]);
             //assert(temp_nodes.size()>1);
- 	    for (int j=0; j<temp_nodes.size(); j++){ if (j>0) { assert(temp_nodes[j]>temp_nodes[j-1]); } _parameters->knot_positions.push_back(temp_nodes[j]); }
+            for (int j=0; j<temp_nodes.size(); j++){ if (j>0) { assert(temp_nodes[j]>temp_nodes[j-1]); } _parameters->knot_positions.push_back(temp_nodes[j]); }
             _parameters->num_partitions_per_dimension[i] = temp_nodes.size()-1;
             if (this->param_types[i]==parameter_type::NUMERICAL) assert(_parameters->num_partitions_per_dimension[i]>0);
             if (i<(this->order-1)) _parameters->knot_index_offsets[i+1]=temp_nodes.size()+_parameters->knot_index_offsets[i];
- 	} else{
-	    assert(0);//parameter_range_partition::CUSTOM interval spacing not tested yet.
-	    //auto temp_nodes = generate_nodes(this->parameter_range_min[i],this->parameter_range_max[i],cells_info[i],_hyperparameters->_partition_spacing[i],std::vector<double>(this->custom_grid_pts.begin()+start_grid_idx,this->custom_grid_pts.begin()+start_grid_idx+cells_info[i]]));
-	    auto temp_nodes = generate_nodes(this->parameter_range_min[i],this->parameter_range_max[i],cells_info[i],_hyperparameters->_partition_spacing[i],this->param_types[i]);
+         } else{
+            assert(0);//parameter_range_partition::CUSTOM interval spacing not tested yet.
+            //auto temp_nodes = generate_nodes(this->param_range_min[i],this->param_range_max[i],cells_info[i],_hyperparameters->partition_spacing[i],std::vector<double>(this->custom_grid_pts.begin()+start_grid_idx,this->custom_grid_pts.begin()+start_grid_idx+cells_info[i]]));
+            auto temp_nodes = generate_nodes(this->param_range_min[i],this->param_range_max[i],cells_info[i],_hyperparameters->partition_spacing[i],this->param_types[i]);
             _parameters->num_partitions_per_dimension[i] = temp_nodes.size();
-	    for (auto it : temp_nodes) _parameters->knot_positions.push_back(it);
+            for (auto it : temp_nodes) _parameters->knot_positions.push_back(it);
             if (i<(this->order-1)) _parameters->knot_index_offsets[i+1]=temp_nodes.size()+_parameters->knot_index_offsets[i];
-	}
+        }
         assert(_parameters->num_partitions_per_dimension[i]>0);
     }
     _parameters->num_knots = _parameters->knot_positions.size();
@@ -863,7 +850,7 @@ void cpr_model::init(
     // Debug Info
     std::cout << "Min/Max mode range: " << std::endl;
     for (int i=0; i<this->order; i++){
-      std::cout << this->parameter_range_min[i] << " " << this->parameter_range_max[i] << std::endl;
+      std::cout << this->param_range_min[i] << " " << this->param_range_max[i] << std::endl;
     }
     std::cout << "cells per dim:\n";
     for (int i=0; i<this->order; i++){
@@ -877,7 +864,7 @@ void cpr_model::init(
       }
       std::cout << std::endl;
     }
-    std::cout << this->cp_rank[0] << " " << this->cp_rank[1] << " " << _hyperparameters->_runtime_transformation << std::endl;
+    std::cout << this->cp_rank[0] << " " << this->cp_rank[1] << " " << _hyperparameters->runtime_transform << std::endl;
     for (int i=0; i<this->order; i++) std::cout << _parameters->num_partitions_per_dimension[i] << " ";
     std::cout << std::endl;
 */
@@ -895,11 +882,9 @@ cpr_model::cpr_model(int nparam, const parameter_type* parameter_types, const hy
   this->order = nparam;
   assert(this->order>0);
   // Inspect partition_spacing to make sure none are parameter_range_partition::AUTOMATIC, because we have not implemented that yet.
-  for (int i=0; i<_hyperparameters->_nparam; i++) assert(_hyperparameters->_partition_spacing[i] != parameter_range_partition::CUSTOM);
+  for (int i=0; i<_hyperparameters->nparam; i++) assert(_hyperparameters->partition_spacing[i] != parameter_range_partition::CUSTOM);
   for (int i=0; i<this->order; i++) { if (this->param_types[i]!=parameter_type::NUMERICAL) { assert(0); } }// NOT TESTED YET
-  //TODO
-//  this->interval_spacing.resize(this->order); for (int i=0; i<this->order; i++) this->interval_spacing[i] = _hyperparameters->_partition_spacing[i];
-  for (int i=0; i<this->m_nparam; i++){
+  for (int i=0; i<this->nparam; i++){
     if (this->param_types[i]==parameter_type::NUMERICAL) this->numerical_modes.push_back(i);
   }
 
@@ -923,7 +908,6 @@ double cpr_model::predict(const double* configuration) const{
       int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
       bool do_i_want_to_print_out = false;//world_rank==0 && _parameters->num_partitions_per_dimension[0]>10 && _parameters->num_partitions_per_dimension[1]>10;
 
-      // TODO: Move this to another file
       // Check for invalid input
       for (int i=0; i<this->order; i++){
         if (configuration[i]<=0 && this->param_types[i]==parameter_type::NUMERICAL) return MIN_POS_RUNTIME;// default "zero-value"
@@ -939,7 +923,7 @@ double cpr_model::predict(const double* configuration) const{
           // Get the closest node (note that node!=midpoint). Two nodes define the bounding box of a grid-cell. Each grid-cell has a mid-point.
           if (this->param_types[j]==parameter_type::CATEGORICAL){
             // Extrapolation is not possible here
-            node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]);
+            node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
             continue;
           }
           if (_parameters->num_partitions_per_dimension[j]==1){
@@ -949,10 +933,10 @@ double cpr_model::predict(const double* configuration) const{
             continue;
           }
           // check if configuration[numerical_modes[j]] is outside of the parameter_nodes on either side
-          double leftmost_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->_partition_spacing[j]);
-          assert(!(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1)+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
-          double rightmost_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1), _parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1), &_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->_partition_spacing[j]);
-          int interval_idx = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]);
+          double leftmost_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->partition_spacing[j]);
+          assert(!(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1)+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
+          double rightmost_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1), _parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1), &_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->partition_spacing[j]);
+          int interval_idx = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
           if (do_i_want_to_print_out){
             std::cout << "leftmost midpoint: " << leftmost_midpoint << ", rightmost midpoint - " << rightmost_midpoint << std::endl;
           }
@@ -962,15 +946,15 @@ double cpr_model::predict(const double* configuration) const{
           } else if (configuration[j] > _parameters->knot_positions[j==(this->order-1) ? _parameters->knot_positions.size()-1 : _parameters->knot_index_offsets[j+1]-1]){
               // extrapolation necessary: we simply use the first midpoint
               node[j]=interval_idx;
-          } else if (configuration[j] < leftmost_midpoint && _hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE){
+          } else if (configuration[j] < leftmost_midpoint && _hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE){
               // extrapolation necessary: inside range of bounding box on left, but left of left-most midpoint
               if (do_i_want_to_print_out) std::cout << "Linear extrapolation left\n";
               decisions[j]=1;
-          } else if (configuration[j] > rightmost_midpoint && _hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE){
+          } else if (configuration[j] > rightmost_midpoint && _hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE){
               // extrapolation necessary: inside range of bounding box on right, but right of right-most midpoint
               if (do_i_want_to_print_out) std::cout << "Linear extrapolation right\n";
               decisions[j]=2;
-          } else if (_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE && configuration[j]==_parameters->knot_positions[_parameters->knot_index_offsets[j]+interval_idx]){
+          } else if (_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE && configuration[j]==_parameters->knot_positions[_parameters->knot_index_offsets[j]+interval_idx]){
               // Don't even attempt to interpolate in this case, because the result will be the same. This avoids unecessary work.
               node[j]=interval_idx;
           } else{
@@ -987,9 +971,9 @@ double cpr_model::predict(const double* configuration) const{
                 int emid_idx = fm_offset+emid*rank+k;
                 int eright_idx = fm_offset+eright*rank+k;
                 if (fm[eleft_idx]*fm[emid_idx]<0) { is_valid_to_interpolate = false; break; }
-                if (std::abs(log(std::abs(fm[eleft_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->_interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
+                if (std::abs(log(std::abs(fm[eleft_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
                 if (fm[eright_idx]*fm[emid_idx]<0) { is_valid_to_interpolate = false; break; }
-                if (std::abs(log(std::abs(fm[eright_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->_interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
+                if (std::abs(log(std::abs(fm[eright_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
               }
               if (!is_valid_to_interpolate){
                 node[j]=interval_idx;
@@ -998,8 +982,8 @@ double cpr_model::predict(const double* configuration) const{
                 intervals.push_back(interval_idx);
                 //NOTE: The actual midpoint isn't obvious.
                 assert(intervals[intervals.size()-1]>=0);
-                if (_hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE) assert(!(intervals[intervals.size()-1]+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
-                midpoints.push_back(get_midpoint_of_two_nodes(intervals[intervals.size()-1], _parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->_partition_spacing[j]));
+                if (_hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE) assert(!(intervals[intervals.size()-1]+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
+                midpoints.push_back(get_midpoint_of_two_nodes(intervals[intervals.size()-1], _parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->partition_spacing[j]));
                 if (do_i_want_to_print_out) std::cout << "Interpolation, interval - " << intervals[intervals.size()-1] << ", midpoint - " << midpoints[midpoints.size()-1] << " " << _parameters->knot_positions[_parameters->knot_index_offsets[j]+intervals[intervals.size()-1]] << "," << _parameters->knot_positions[_parameters->knot_index_offsets[j]+intervals[intervals.size()-1]+1] << std::endl;
                 modes_to_interpolate.push_back(j);
                 local_interp_map[j] = 1;
@@ -1014,18 +998,18 @@ double cpr_model::predict(const double* configuration) const{
       for (int j=0; j<modes_to_interpolate.size(); j++){
         // NOTE: This loop iteration exists only if there always exists a midpoint to left and right!
         element_index_modes_list.push_back(std::make_pair(-1,-1));
-        if (_hyperparameters->_partition_spacing[modes_to_interpolate[j]]==parameter_range_partition::SINGLE){
-	    element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]);
-	    element_index_modes_list[j].second = element_index_modes_list[j].first+1;
+        if (_hyperparameters->partition_spacing[modes_to_interpolate[j]]==parameter_range_partition::SINGLE){
+            element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]);
+            element_index_modes_list[j].second = element_index_modes_list[j].first+1;
         } else{
-	  if (configuration[modes_to_interpolate[j]] < midpoints[j]){//TODO: Watch for this "< vs <=" sign
-	    element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]-1);
-	    element_index_modes_list[j].second = element_index_modes_list[j].first+1;
-	  } else{
-	    element_index_modes_list[j].first = std::min(intervals[j],_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2);
-	    element_index_modes_list[j].second = element_index_modes_list[j].first+1;
+          if (configuration[modes_to_interpolate[j]] < midpoints[j]){
+            element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]-1);
+            element_index_modes_list[j].second = element_index_modes_list[j].first+1;
+          } else{
+            element_index_modes_list[j].first = std::min(intervals[j],_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2);
+            element_index_modes_list[j].second = element_index_modes_list[j].first+1;
           }
-	}
+        }
       }
 
         double model_val = 0.;
@@ -1036,46 +1020,44 @@ double cpr_model::predict(const double* configuration) const{
           std::vector<int> interp_id_list(modes_to_interpolate.size(),0);
           int counter = 0;
           while (interp_id>0){
-	    assert(counter < interp_id_list.size());
-	    interp_id_list[counter] = interp_id%2;
-	    interp_id/=2;
-	    counter++;
-	  }
+            assert(counter < interp_id_list.size());
+            interp_id_list[counter] = interp_id%2;
+            interp_id/=2;
+            counter++;
+          }
           // interp_id_list stores the particular mid-point whose execution time we are using as part of multilinear interpolation strategy
-	  double coeff = 1;
-	  for (int l=0; l<modes_to_interpolate.size(); l++){
-	    int cell_node_idx = _parameters->knot_index_offsets[modes_to_interpolate[l]];
-	    if (interp_id_list[l] == 0){
-	      //TODO: Check the correctness here
+          double coeff = 1;
+          for (int l=0; l<modes_to_interpolate.size(); l++){
+            int cell_node_idx = _parameters->knot_index_offsets[modes_to_interpolate[l]];
+            if (interp_id_list[l] == 0){
               int order_id = modes_to_interpolate[l];
-	      int& temp_id = element_index_modes_list[l].first;
+              int& temp_id = element_index_modes_list[l].first;
               assert(temp_id>=0);
-              double left_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
-              if (_hyperparameters->_partition_spacing[order_id]!=parameter_range_partition::SINGLE) assert(!(temp_id+2==_parameters->num_partitions_per_dimension[order_id]+1));
-              double right_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id+1] : get_midpoint_of_two_nodes(temp_id+1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
+              double left_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
+              if (_hyperparameters->partition_spacing[order_id]!=parameter_range_partition::SINGLE) assert(!(temp_id+2==_parameters->num_partitions_per_dimension[order_id]+1));
+              double right_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id+1] : get_midpoint_of_two_nodes(temp_id+1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
               if (do_i_want_to_print_out) std::cout << "Points(0): " << left_point << " " << right_point << std::endl;
-	      coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-left_point))/(right_point-left_point)));
+              coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-left_point))/(right_point-left_point)));
               assert(coeff >= 0);
-	    }
+            }
             // coeff quantifies how close the current point (configuration) is to the mid-point characterized by interp_id_list
-	    if (interp_id_list[l] == 1){
-	      //TODO: Check the correctness here
+            if (interp_id_list[l] == 1){
               int order_id = modes_to_interpolate[l];
               int& temp_id = element_index_modes_list[l].second;
               assert(temp_id>=1);
-              //if (_hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id==_parameters->num_partitions_per_dimension[order_id]+1));
-              double left_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id-1] : get_midpoint_of_two_nodes(temp_id-1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
-              //if (_hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id+1==_parameters->num_partitions_per_dimension[order_id]+1));
-              double right_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
+              //if (_hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id==_parameters->num_partitions_per_dimension[order_id]+1));
+              double left_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id-1] : get_midpoint_of_two_nodes(temp_id-1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
+              //if (_hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id+1==_parameters->num_partitions_per_dimension[order_id]+1));
+              double right_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
               if (do_i_want_to_print_out) std::cout << "Points(1): " << left_point << " " << right_point << std::endl;
-	      coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-right_point))/(right_point-left_point)));
+              coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-right_point))/(right_point-left_point)));
               assert(coeff >= 0);
-	    }
-	  }
-	  std::vector<double> factor_row_list;
-//	  factor_row_list.reserve(rank*this->order);
-	  int interp_counter = 0;
-	  int factor_matrix_offset = 0;
+            }
+          }
+          std::vector<double> factor_row_list;
+//          factor_row_list.reserve(rank*this->order);
+          int interp_counter = 0;
+          int factor_matrix_offset = 0;
           int fmesvd_offset=0;
           // Concatenate all of the factor matrix elements necessary to perform multilinear product
           for (int l=0; l<this->order; l++){
@@ -1093,12 +1075,10 @@ double cpr_model::predict(const double* configuration) const{
                   factor_row_list.push_back(fm[factor_matrix_offset + node[l]*rank+ll]);
                 }
               } else if (decisions[l]==1){
-                assert(_hyperparameters->_partition_spacing[l]!=parameter_range_partition::SINGLE);
-                //TODO: Why do it this way? Why not the factor matri value and apply coefficient? I guess it might be the same thing, since we only care about one side? Verify this.
-                double left_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
-                double right_midpoint = get_midpoint_of_two_nodes(1, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
+                assert(_hyperparameters->partition_spacing[l]!=parameter_range_partition::SINGLE);
+                double left_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
+                double right_midpoint = get_midpoint_of_two_nodes(1, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
                 for (int ll=0; ll<rank; ll++){
-                  //TODO: should use log or non-log transformation of right_midpoint,left_midpoint, configuration[l] and left_midpoint? Based on _hyperparameters->_partition_spacing and whether configuration[l]==0?
                   assert(right_midpoint > left_midpoint);
                   double _slope = (fm[factor_matrix_offset+rank+ll]-fm[factor_matrix_offset+ll])/(right_midpoint - left_midpoint);
                   double _num = configuration[l]-left_midpoint;
@@ -1106,10 +1086,9 @@ double cpr_model::predict(const double* configuration) const{
                   factor_row_list.push_back(fm[factor_matrix_offset+ll] + _num*_slope);
                 }
               } else if (decisions[l]==2){
-                assert(_hyperparameters->_partition_spacing[l]!=parameter_range_partition::SINGLE);
-                //TODO: Why do it this way? Why not the factor matri value and apply coefficient? I guess it might be the same thing, since we only care about one side? Verify this.
-                double left_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-2, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
-                double right_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-1, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
+                assert(_hyperparameters->partition_spacing[l]!=parameter_range_partition::SINGLE);
+                double left_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-2, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
+                double right_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-1, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
                 for (int ll=0; ll<rank; ll++){
                   double _slope = (fm[factor_matrix_offset+(_parameters->num_partitions_per_dimension[l]-1)*rank+ll]-fm[factor_matrix_offset+(_parameters->num_partitions_per_dimension[l]-2)*rank+ll]);
                   assert(right_midpoint > left_midpoint);
@@ -1123,7 +1102,7 @@ double cpr_model::predict(const double* configuration) const{
           factor_matrix_offset += _parameters->num_partitions_per_dimension[l]*rank;
         }
         double t_val = multilinear_product_packed(&factor_row_list[0],factor_row_list.size(),this->order,rank);
-        if (_hyperparameters->_runtime_transformation==runtime_transformation::LOG){
+        if (_hyperparameters->runtime_transform==runtime_transformation::LOG){
           t_val = exp(t_val);
         }
         if (do_i_want_to_print_out) std::cout << "Coeff - " << coeff << std::endl;
@@ -1144,24 +1123,24 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
       if (!model::train(num_configurations,configurations,runtimes,save_dataset,fit_info)) return false;
       assert(_hyperparameters != nullptr);
 
-      int world_size_for_training; MPI_Comm_size(_hyperparameters->_cm_training,&world_size_for_training);
-      assert(world_size_for_training==1);//TODO: Lift this constraint later
+      int world_size_for_training; MPI_Comm_size(_hyperparameters->cm_training,&world_size_for_training);
+      assert(world_size_for_training==1);
 
       int my_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_rank);
-      int world_rank = my_rank;//TODO: delete later
+      int world_rank = my_rank;
 
       // Update the interval spacing justs in case it was set incorrectly (as default is geometric)
       // NOTE: The user may have specified parameter_range_partition::GEOMETRIC spacing for a parameter_type::NUMERICAL parameter, yet the range is so small that it is clear that a log-like tranformation
       //    was already applied to the parameter values in the training set (e.g., if process count has been transformed to log(process count). In that case,
       //    the spacing should be reset to parameter_range_partition::UNIFORM and a zero value should be allowed.
       for (int j=0; j<this->order; j++){
-        if (this->param_types[j]==parameter_type::NUMERICAL && _hyperparameters->_partition_spacing[j]==parameter_range_partition::GEOMETRIC && this->parameter_range_min[j] <= 0){
-          _hyperparameters->_partition_spacing[j]=parameter_range_partition::UNIFORM;
+        if (this->param_types[j]==parameter_type::NUMERICAL && _hyperparameters->partition_spacing[j]==parameter_range_partition::GEOMETRIC && this->param_range_min[j] <= 0){
+          _hyperparameters->partition_spacing[j]=parameter_range_partition::UNIFORM;
         }
       }
       for (int j=0; j<this->order; j++){
-        if (this->param_types[j]==parameter_type::NUMERICAL && this->parameter_range_min[j]==this->parameter_range_max[j]){
-          _hyperparameters->_partition_spacing[j]=parameter_range_partition::SINGLE;
+        if (this->param_types[j]==parameter_type::NUMERICAL && this->param_range_min[j]==this->param_range_max[j]){
+          _hyperparameters->partition_spacing[j]=parameter_range_partition::SINGLE;
         }
       }
 
@@ -1170,17 +1149,17 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
       // If the max boundary value of the range is simply too small for the interval spacing of parameter_type::NUMERICAL parameter to be parameter_range_partition::GEOMETRIC, then reset to parameter_range_partition::UNIFORM.
       // TODO:  In this case, it might also be useful to reset to parameter_range_partition::AUTOMATIC so as to leverage the fact that many values in the (small) range might be unobserved.
       for (int j=0; j<this->order; j++){
-        if ((this->param_types[j]==parameter_type::NUMERICAL) && (this->parameter_range_max[j]<NUMERICAL_PARAM_MIN_OBS_RANGE)){
-          _hyperparameters->_partition_spacing[j]=parameter_range_partition::SINGLE;
-          _hyperparameters->_partition_info[j]=this->parameter_range_max[j]-this->parameter_range_min[j]+1;
+        if ((this->param_types[j]==parameter_type::NUMERICAL) && (this->param_range_max[j]<NUMERICAL_PARAM_MIN_OBS_RANGE)){
+          _hyperparameters->partition_spacing[j]=parameter_range_partition::SINGLE;
+          _hyperparameters->partition_info[j]=this->param_range_max[j]-this->param_range_min[j]+1;
         }
       }
       //NOTE: There is also a corner case in which the parameter type is parameter_type::NUMERICAL and the interval spacing is parameter_range_partition::GEOMETRIC, yet the observed feature values are large with a very small range.
       //      We keep parameter_range_partition::GEOMETRIC spacing, noting that the parameter_range_partition::GEOMETRIC spacing is very similar to parameter_range_partition::UNIFORM for this use case.
       std::vector<int> local_cells_info(this->order);
       for (int j=0; j<this->order; j++){
-	//NOTE: Below handles a corner case
-	local_cells_info[j] = (_hyperparameters->_partition_spacing[j]==parameter_range_partition::AUTOMATIC ? _hyperparameters->_partition_info[j] : static_cast<int>(std::min(static_cast<double>(_hyperparameters->_partition_info[j]),this->parameter_range_max[j]-this->parameter_range_min[j]+1)));
+        //NOTE: Below handles a corner case
+        local_cells_info[j] = (_hyperparameters->partition_spacing[j]==parameter_range_partition::AUTOMATIC ? _hyperparameters->partition_info[j] : static_cast<int>(std::min(static_cast<double>(_hyperparameters->partition_info[j]),this->param_range_max[j]-this->param_range_min[j]+1)));
       }
       this->init(local_cells_info,{},num_configurations,configurations);
 
@@ -1210,13 +1189,13 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
           bool is_valid = true;
           for (int j=0; j<this->order; j++){
             assert(configurations[i*this->order+j] >= _parameters->knot_positions[_parameters->knot_index_offsets[j]]);
-            assert(configurations[i*this->order+j] <= _parameters->knot_positions[_parameters->knot_index_offsets[j]+_parameters->num_partitions_per_dimension[j]-((this->param_types[j]==parameter_type::NUMERICAL && _hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE) ? 0 : 1)]);
+            assert(configurations[i*this->order+j] <= _parameters->knot_positions[_parameters->knot_index_offsets[j]+_parameters->num_partitions_per_dimension[j]-((this->param_types[j]==parameter_type::NUMERICAL && _hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE) ? 0 : 1)]);
             if (this->param_types[j]!= parameter_type::NUMERICAL){
-              element_key.push_back(get_node_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]));
+              element_key.push_back(get_node_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]));
             } else{
               assert(_parameters->num_partitions_per_dimension[j]>0);
-              element_key.push_back(get_interval_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]));
-              if (_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE){
+              element_key.push_back(get_interval_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]));
+              if (_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE){
                 assert(_parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] == configurations[i*this->order+j]);
               } else{
                 assert(_parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] <= configurations[i*this->order+j]);
@@ -1261,7 +1240,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
       int64_t* ptr_to_indices,*ptr_to_indices2,*ptr_to_indices3;
       double* ptr_to_data,*ptr_to_data2,*ptr_to_data3;
       // NOTE: Not interested in doing any distributed-memory tensor contractions here, as this must proceed online.
-      CTF::World dw(_hyperparameters->_cm_training);
+      CTF::World dw(_hyperparameters->cm_training);
       CTF::Tensor<> omega(this->order, true, &_parameters->num_partitions_per_dimension[0], &tensor_mode_types[0], dw);
       CTF::Tensor<> Tsparse(this->order, true, &_parameters->num_partitions_per_dimension[0], &tensor_mode_types[0], dw);
       omega.write(training_nodes.size(),&training_nodes[0],&ones[0]);
@@ -1270,30 +1249,30 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
       std::vector<CTF::Tensor<>*> FM1;// Must be Tensor, not Matrix due to constraints of multilinear interface
       std::vector<int> fm_mode_types(2,NS);
       for (int i=0; i<this->order; i++){
-          std::vector<int> fm_mode_lengths = {_hyperparameters->_cp_rank,_parameters->num_partitions_per_dimension[i]};
+          std::vector<int> fm_mode_lengths = {_hyperparameters->cp_rank,_parameters->num_partitions_per_dimension[i]};
           FM1.emplace_back(new CTF::Tensor<>(2,&fm_mode_lengths[0],&fm_mode_types[0],dw));
        }
        // Optimize model
 
        // For interpolation, we first minimize mean squared error using log-transformed data
        auto _T_ = Tsparse;
-       if (_hyperparameters->_runtime_transformation == runtime_transformation::LOG){
+       if (_hyperparameters->runtime_transform == runtime_transformation::LOG){
          CTF::Sparse_log(&_T_); 
        }
 
-      if (_hyperparameters->_loss_function == loss_function::MSE){
-        for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->_loss_function);
-        double loss_value = cpd_als(&dw,&_T_,&omega,FM1,_hyperparameters->_regularization,_hyperparameters->_optimization_convergence_tolerance,_hyperparameters->_max_num_optimization_sweeps);
+      if (_hyperparameters->loss == loss_function::MSE){
+        for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->loss);
+        double loss_value = cpd_als(&dw,&_T_,&omega,FM1,_hyperparameters->regularization,_hyperparameters->optimization_convergence_tolerance,_hyperparameters->max_num_optimization_sweeps);
         if (compute_fit_error) _fit_info->loss = loss_value;
-      } else if (_hyperparameters->_loss_function == loss_function::MLOGQ2){
+      } else if (_hyperparameters->loss == loss_function::MLOGQ2){
          int num_re_inits = 0;
-         while (num_re_inits < _hyperparameters->_max_num_re_inits){
-           for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->_loss_function);
-           double loss_value = cpd_amn(&dw,&Tsparse,&omega,FM1,_hyperparameters->_regularization,\
-             _hyperparameters->_optimization_convergence_tolerance,_hyperparameters->_max_num_optimization_sweeps, _hyperparameters->_factor_matrix_optimization_convergence_tolerance,\
-             _hyperparameters->_factor_matrix_optimization_max_num_iterations, _hyperparameters->_optimization_barrier_start,_hyperparameters->_optimization_barrier_stop,_hyperparameters->_optimization_barrier_reduction_factor);
+         while (num_re_inits < _hyperparameters->max_num_re_inits){
+           for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->loss);
+           double loss_value = cpd_amn(&dw,&Tsparse,&omega,FM1,_hyperparameters->regularization,\
+             _hyperparameters->optimization_convergence_tolerance,_hyperparameters->max_num_optimization_sweeps, _hyperparameters->factor_matrix_optimization_convergence_tolerance,\
+             _hyperparameters->factor_matrix_optimization_max_num_iterations, _hyperparameters->optimization_barrier_start,_hyperparameters->optimization_barrier_stop,_hyperparameters->optimization_barrier_reduction_factor);
            if (compute_fit_error) _fit_info->loss = loss_value;
-           if (loss_value <= _hyperparameters->_optimization_convergence_tolerance_for_re_init) break;
+           if (loss_value <= _hyperparameters->optimization_convergence_tolerance_for_re_init) break;
            num_re_inits++;
          }
       } else assert(0);
@@ -1304,12 +1283,12 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
       for (int i=0; i<this->order; i++){
         total_elements_across_all_factor_matrices += _parameters->num_partitions_per_dimension[i];
       }
-      total_elements_across_all_factor_matrices *= _hyperparameters->_cp_rank;
+      total_elements_across_all_factor_matrices *= _hyperparameters->cp_rank;
       double* temporary_buffer = new double[total_elements_across_all_factor_matrices];
       int offset = 0;
       for (int i=0; i<this->order; i++){
         FM1[i]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data);
-        assert(_parameters->num_partitions_per_dimension[i]*_hyperparameters->_cp_rank == num_nnz_elems);
+        assert(_parameters->num_partitions_per_dimension[i]*_hyperparameters->cp_rank == num_nnz_elems);
         std::memcpy(temporary_buffer+offset,ptr_to_data,num_nnz_elems*sizeof(double));
         offset += num_nnz_elems;
         delete[] ptr_to_data;
@@ -1318,7 +1297,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
       if (_parameters->factor_matrix_elements!=nullptr) delete[] _parameters->factor_matrix_elements;
       _parameters->factor_matrix_elements = temporary_buffer;
       _parameters->num_factor_matrix_elements = total_elements_across_all_factor_matrices;
-      _parameters->cp_rank = _hyperparameters->_cp_rank;
+      _parameters->cp_rank = _hyperparameters->cp_rank;
       for (int i=0; i<this->order; i++){
         delete FM1[i];
       }
@@ -1358,13 +1337,13 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
           std::vector<int> element_key;
           std::vector<double> element_key_configuration;
           for (int j=0; j<this->order; j++){
-            assert(configurations[i*this->order+j] <= _parameters->knot_positions[_parameters->knot_index_offsets[j]+_parameters->num_partitions_per_dimension[j]-(this->param_types[j]==parameter_type::NUMERICAL && _hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE ? 0 : 1)]);
+            assert(configurations[i*this->order+j] <= _parameters->knot_positions[_parameters->knot_index_offsets[j]+_parameters->num_partitions_per_dimension[j]-(this->param_types[j]==parameter_type::NUMERICAL && _hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE ? 0 : 1)]);
             if (this->param_types[j]!= parameter_type::NUMERICAL){
-              element_key.push_back(get_node_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]));
+              element_key.push_back(get_node_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]));
             } else{
               assert(_parameters->num_partitions_per_dimension[j]>0);
-              element_key.push_back(get_interval_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]));
-              if (_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE){
+              element_key.push_back(get_interval_index(configurations[i*this->order+j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]));
+              if (_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE){
                 assert(_parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] == configurations[i*this->order+j]);
               } else{
                 assert(_parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] <= configurations[i*this->order+j]);
@@ -1375,8 +1354,8 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
             if (this->param_types[j]==parameter_type::CATEGORICAL){
               element_key_configuration.push_back(_parameters->knot_positions[element_key[j]]);
             } else{
-              //if (_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE) assert(!(element_key[j]+1==_parameters->num_partitions_per_dimension[j]+1));
-              element_key_configuration.push_back(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] : get_midpoint_of_two_nodes(element_key[j],_parameters->num_partitions_per_dimension[j]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]));
+              //if (_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE) assert(!(element_key[j]+1==_parameters->num_partitions_per_dimension[j]+1));
+              element_key_configuration.push_back(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] : get_midpoint_of_two_nodes(element_key[j],_parameters->num_partitions_per_dimension[j]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]));
             }
           }
           assert(node_data_dict.find(element_key) != node_data_dict.end());
@@ -1384,7 +1363,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
           double tensor_elem_sample_mean = node_data_dict[element_key] / node_count_dict[element_key];// use this rather than training_nodes because I don't care about calculating tensor_elem as one integer
           double quad_err = std::abs(log(tensor_elem_sample_mean/runtimes[i]));
           double tensor_elem_prediction = multilinear_product(&_parameters->factor_matrix_elements[0],&element_key[0],&_parameters->num_partitions_per_dimension[0],this->order,_parameters->cp_rank);
-          if (_hyperparameters->_runtime_transformation == runtime_transformation::LOG) tensor_elem_prediction = exp(tensor_elem_prediction);
+          if (_hyperparameters->runtime_transform == runtime_transformation::LOG) tensor_elem_prediction = exp(tensor_elem_prediction);
           double low_rank_err1 = std::abs(log(tensor_elem_prediction/tensor_elem_sample_mean));
           double tensor_elem_prediction2 = this->cpr_model::predict(&element_key_configuration[0]);
           double low_rank_err2 = std::abs(log(tensor_elem_prediction2/tensor_elem_sample_mean));
@@ -1399,11 +1378,11 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
             // get nearby predictions too (just for CTF)
             std::vector<int> element_key_left = {element_key[0],std::max(0,element_key[1]-1)};
             std::vector<int> element_key_right = {element_key[0],std::min(_parameters->num_partitions_per_dimension[1],element_key[1]+1)};
-            std::vector<double> element_key_config_left = {element_key_configuration[0],get_midpoint_of_two_nodes(element_key_left[1],_parameters->num_partitions_per_dimension[1]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[1]],_hyperparameters->_partition_spacing[1])};
-            std::vector<double> element_key_config_right = {element_key_configuration[0],get_midpoint_of_two_nodes(element_key_right[1],_parameters->num_partitions_per_dimension[1]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[1]],_hyperparameters->_partition_spacing[1])};
+            std::vector<double> element_key_config_left = {element_key_configuration[0],get_midpoint_of_two_nodes(element_key_left[1],_parameters->num_partitions_per_dimension[1]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[1]],_hyperparameters->partition_spacing[1])};
+            std::vector<double> element_key_config_right = {element_key_configuration[0],get_midpoint_of_two_nodes(element_key_right[1],_parameters->num_partitions_per_dimension[1]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[1]],_hyperparameters->partition_spacing[1])};
             double tensor_elem_left_prediction3 = this->cpr_model::predict(&element_key_config_left[0]);
             double tensor_elem_right_prediction3 = this->cpr_model::predict(&element_key_config_right[0]);
-	    std::cout << "(" << configurations[i*this->order] << "," << configurations[i*this->order+1] << "), Node: (" << element_key[0] << "," << element_key[1] << "), Element config - (" << element_key_configuration[0] << "," << element_key_configuration[1] << "), Left: - " << tensor_elem_left_prediction3 << ", Right: " << tensor_elem_right_prediction3 << ", " << this->Projected_Omegas[1][element_key_left[1]] << "," << this->Projected_Omegas[1][element_key[1]] << "," << this->Projected_Omegas[1][element_key_right[1]] << "  , True Runtime: " << runtimes[i] << ", Runtime Preditions: (" << tensor_elem_sample_mean << " , " << tensor_elem_prediction << " , " << tensor_elem_prediction2 << " , " << runtime_estimate << "), Errors: (" << quad_err << " , " << low_rank_err1 << " , " << low_rank_err2 << " , " << rel_err << ")\n";
+            std::cout << "(" << configurations[i*this->order] << "," << configurations[i*this->order+1] << "), Node: (" << element_key[0] << "," << element_key[1] << "), Element config - (" << element_key_configuration[0] << "," << element_key_configuration[1] << "), Left: - " << tensor_elem_left_prediction3 << ", Right: " << tensor_elem_right_prediction3 << ", " << this->Projected_Omegas[1][element_key_left[1]] << "," << this->Projected_Omegas[1][element_key[1]] << "," << this->Projected_Omegas[1][element_key_right[1]] << "  , True Runtime: " << runtimes[i] << ", Runtime Preditions: (" << tensor_elem_sample_mean << " , " << tensor_elem_prediction << " , " << tensor_elem_prediction2 << " , " << runtime_estimate << "), Errors: (" << quad_err << " , " << low_rank_err1 << " , " << low_rank_err2 << " , " << rel_err << ")\n";
           }
           //NOTE: I could also check correlation between high relative error and high quadrature error
           //std::cout << rel_err << " " << agg_relative_error << " " << runtime_estimate << " " << runtimes[i] << " " << configurations[i*this->order] << " " << configurations[i*this->order+1] << " " << configurations[i*this->order+2] << std::endl;
@@ -1417,7 +1396,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
           auto& element_key = it.first;
           double tensor_elem_sample_mean = node_data_dict[element_key] / node_count_dict[element_key];// use this rather than training_nodes because I don't care about calculating tensor_elem as one integer
           double tensor_elem_prediction = multilinear_product(&_parameters->factor_matrix_elements[0],&element_key[0],&_parameters->num_partitions_per_dimension[0],this->order,_parameters->cp_rank);
-          if (_hyperparameters->_runtime_transformation == runtime_transformation::LOG) tensor_elem_prediction = exp(tensor_elem_prediction);
+          if (_hyperparameters->runtime_transform == runtime_transformation::LOG) tensor_elem_prediction = exp(tensor_elem_prediction);
           double low_rank_err = std::abs(log(tensor_elem_prediction/tensor_elem_sample_mean));
 //          std::cout << low_rank_err << " " << tensor_elem_sample_mean << " " << tensor_elem_prediction << std::endl;
           //NOTE: I could also check correlation between high relative error and high quadrature error
@@ -1509,7 +1488,6 @@ double cprg_model::predict(const double* configuration) const{
       int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
       bool do_i_want_to_print_out = false;//world_rank==0 && _parameters->num_partitions_per_dimension[0]>10 && _parameters->num_partitions_per_dimension[1]>10;
 
-      // TODO: Move this to another file
       // Check for invalid input
       for (int i=0; i<this->order; i++){
         if (configuration[i]<=0 && this->param_types[i]==parameter_type::NUMERICAL) return MIN_POS_RUNTIME;// default "zero-value"
@@ -1526,7 +1504,7 @@ double cprg_model::predict(const double* configuration) const{
           // Get the closest node (note that node!=midpoint). Two nodes define the bounding box of a grid-cell. Each grid-cell has a mid-point.
           if (this->param_types[j]==parameter_type::CATEGORICAL){
             // Extrapolation is not possible here
-            node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]);
+            node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
             continue;
           }
           if (_parameters->num_partitions_per_dimension[j]==1){
@@ -1536,10 +1514,10 @@ double cprg_model::predict(const double* configuration) const{
             continue;
           }
           // check if configuration[numerical_modes[j]] is outside of the parameter_nodes on either side
-          double leftmost_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->_partition_spacing[j]);
-          assert(!(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1)+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
-          double rightmost_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1), _parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1), &_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->_partition_spacing[j]);
-          int interval_idx = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->_partition_spacing[j]);
+          double leftmost_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->partition_spacing[j]);
+          assert(!(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1)+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
+          double rightmost_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[j]-(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 2 : 1), _parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1), &_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->partition_spacing[j]);
+          int interval_idx = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
           if (do_i_want_to_print_out){
             std::cout << "leftmost midpoint: " << leftmost_midpoint << ", rightmost midpoint - " << rightmost_midpoint << std::endl;
           }
@@ -1551,15 +1529,15 @@ double cprg_model::predict(const double* configuration) const{
               // extrapolation necessary: outside range of bounding box on right
               decisions[j]=4;
               is_extrapolation=true;
-          } else if (configuration[j] < leftmost_midpoint && _hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE){
+          } else if (configuration[j] < leftmost_midpoint && _hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE){
               // extrapolation necessary: inside range of bounding box on left, but left of left-most midpoint
               if (do_i_want_to_print_out) std::cout << "Linear extrapolation left\n";
               decisions[j]=1;
-          } else if (configuration[j] > rightmost_midpoint && _hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE){
+          } else if (configuration[j] > rightmost_midpoint && _hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE){
               // extrapolation necessary: inside range of bounding box on right, but right of right-most midpoint
               if (do_i_want_to_print_out) std::cout << "Linear extrapolation right\n";
               decisions[j]=2;
-          } else if (_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE && configuration[j]==_parameters->knot_positions[_parameters->knot_index_offsets[j]+interval_idx]){
+          } else if (_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE && configuration[j]==_parameters->knot_positions[_parameters->knot_index_offsets[j]+interval_idx]){
               // Don't even attempt to interpolate in this case, because the result will be the same. This avoids unecessary work.
               node[j]=interval_idx;
           } else{
@@ -1576,9 +1554,9 @@ double cprg_model::predict(const double* configuration) const{
                 int emid_idx = fm_offset+emid*rank+k;
                 int eright_idx = fm_offset+eright*rank+k;
                 if (fm[eleft_idx]*fm[emid_idx]<0) { is_valid_to_interpolate = false; break; }
-                if (std::abs(log(std::abs(fm[eleft_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->_interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
+                if (std::abs(log(std::abs(fm[eleft_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
                 if (fm[eright_idx]*fm[emid_idx]<0) { is_valid_to_interpolate = false; break; }
-                if (std::abs(log(std::abs(fm[eright_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->_interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
+                if (std::abs(log(std::abs(fm[eright_idx]/std::abs(fm[emid_idx])))) > _hyperparameters->interpolation_factor_tolerance) { is_valid_to_interpolate = false; break; }
               }
               if (!is_valid_to_interpolate){
                 node[j]=interval_idx;
@@ -1587,8 +1565,8 @@ double cprg_model::predict(const double* configuration) const{
                 intervals.push_back(interval_idx);
                 //NOTE: The actual midpoint isn't obvious.
                 assert(intervals[intervals.size()-1]>=0);
-                if (_hyperparameters->_partition_spacing[j]!=parameter_range_partition::SINGLE) assert(!(intervals[intervals.size()-1]+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
-                midpoints.push_back(get_midpoint_of_two_nodes(intervals[intervals.size()-1], _parameters->num_partitions_per_dimension[j]+(_hyperparameters->_partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->_partition_spacing[j]));
+                if (_hyperparameters->partition_spacing[j]!=parameter_range_partition::SINGLE) assert(!(intervals[intervals.size()-1]+1==_parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1)));
+                midpoints.push_back(get_midpoint_of_two_nodes(intervals[intervals.size()-1], _parameters->num_partitions_per_dimension[j]+(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[j]], _hyperparameters->partition_spacing[j]));
                 if (do_i_want_to_print_out) std::cout << "Interpolation, interval - " << intervals[intervals.size()-1] << ", midpoint - " << midpoints[midpoints.size()-1] << " " << _parameters->knot_positions[_parameters->knot_index_offsets[j]+intervals[intervals.size()-1]] << "," << _parameters->knot_positions[_parameters->knot_index_offsets[j]+intervals[intervals.size()-1]+1] << std::endl;
                 modes_to_interpolate.push_back(j);
                 local_interp_map[j] = 1;
@@ -1603,18 +1581,18 @@ double cprg_model::predict(const double* configuration) const{
       for (int j=0; j<modes_to_interpolate.size(); j++){
         // NOTE: This loop iteration exists only if there always exists a midpoint to left and right!
         element_index_modes_list.push_back(std::make_pair(-1,-1));
-        if (_hyperparameters->_partition_spacing[modes_to_interpolate[j]]==parameter_range_partition::SINGLE){
-	    element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]);
-	    element_index_modes_list[j].second = element_index_modes_list[j].first+1;
+        if (_hyperparameters->partition_spacing[modes_to_interpolate[j]]==parameter_range_partition::SINGLE){
+          element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]);
+          element_index_modes_list[j].second = element_index_modes_list[j].first+1;
         } else{
-	  if (configuration[modes_to_interpolate[j]] < midpoints[j]){//TODO: Watch for this "< vs <=" sign
-	    element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]-1);
-	    element_index_modes_list[j].second = element_index_modes_list[j].first+1;
-	  } else{
-	    element_index_modes_list[j].first = std::min(intervals[j],_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2);
-	    element_index_modes_list[j].second = element_index_modes_list[j].first+1;
+          if (configuration[modes_to_interpolate[j]] < midpoints[j]){
+            element_index_modes_list[j].first = std::min(_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2,intervals[j]-1);
+            element_index_modes_list[j].second = element_index_modes_list[j].first+1;
+          } else{
+            element_index_modes_list[j].first = std::min(intervals[j],_parameters->num_partitions_per_dimension[modes_to_interpolate[j]]-2);
+            element_index_modes_list[j].second = element_index_modes_list[j].first+1;
           }
-	}
+        }
       }
 
         double model_val = 0.;
@@ -1625,46 +1603,44 @@ double cprg_model::predict(const double* configuration) const{
           std::vector<int> interp_id_list(modes_to_interpolate.size(),0);
           int counter = 0;
           while (interp_id>0){
-	    assert(counter < interp_id_list.size());
-	    interp_id_list[counter] = interp_id%2;
-	    interp_id/=2;
-	    counter++;
-	  }
+            assert(counter < interp_id_list.size());
+            interp_id_list[counter] = interp_id%2;
+            interp_id/=2;
+            counter++;
+          }
           // interp_id_list stores the particular mid-point whose execution time we are using as part of multilinear interpolation strategy
-	  double coeff = 1;
-	  for (int l=0; l<modes_to_interpolate.size(); l++){
-	    int cell_node_idx = _parameters->knot_index_offsets[modes_to_interpolate[l]];
-	    if (interp_id_list[l] == 0){
-	      //TODO: Check the correctness here
+          double coeff = 1;
+          for (int l=0; l<modes_to_interpolate.size(); l++){
+            int cell_node_idx = _parameters->knot_index_offsets[modes_to_interpolate[l]];
+            if (interp_id_list[l] == 0){
               int order_id = modes_to_interpolate[l];
-	      int& temp_id = element_index_modes_list[l].first;
+              int& temp_id = element_index_modes_list[l].first;
               assert(temp_id>=0);
-              double left_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
-              if (_hyperparameters->_partition_spacing[order_id]!=parameter_range_partition::SINGLE) assert(!(temp_id+2==_parameters->num_partitions_per_dimension[order_id]+1));
-              double right_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id+1] : get_midpoint_of_two_nodes(temp_id+1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
+              double left_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
+              if (_hyperparameters->partition_spacing[order_id]!=parameter_range_partition::SINGLE) assert(!(temp_id+2==_parameters->num_partitions_per_dimension[order_id]+1));
+              double right_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id+1] : get_midpoint_of_two_nodes(temp_id+1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
               if (do_i_want_to_print_out) std::cout << "Points(0): " << left_point << " " << right_point << std::endl;
-	      coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-left_point))/(right_point-left_point)));
+              coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-left_point))/(right_point-left_point)));
               assert(coeff >= 0);
-	    }
+            }
             // coeff quantifies how close the current point (configuration) is to the mid-point characterized by interp_id_list
-	    if (interp_id_list[l] == 1){
-	      //TODO: Check the correctness here
+            if (interp_id_list[l] == 1){
               int order_id = modes_to_interpolate[l];
               int& temp_id = element_index_modes_list[l].second;
               assert(temp_id>=1);
-              //if (_hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id==_parameters->num_partitions_per_dimension[order_id]+1));
-              double left_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id-1] : get_midpoint_of_two_nodes(temp_id-1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
-              //if (_hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id+1==_parameters->num_partitions_per_dimension[order_id]+1));
-              double right_point = _hyperparameters->_partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->_partition_spacing[order_id]);
+              //if (_hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id==_parameters->num_partitions_per_dimension[order_id]+1));
+              double left_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id-1] : get_midpoint_of_two_nodes(temp_id-1, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
+              //if (_hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE) assert(!(temp_id+1==_parameters->num_partitions_per_dimension[order_id]+1));
+              double right_point = _hyperparameters->partition_spacing[order_id]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[order_id]+temp_id] : get_midpoint_of_two_nodes(temp_id, _parameters->num_partitions_per_dimension[order_id]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[order_id]], _hyperparameters->partition_spacing[order_id]);
               if (do_i_want_to_print_out) std::cout << "Points(1): " << left_point << " " << right_point << std::endl;
-	      coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-right_point))/(right_point-left_point)));
+              coeff *= std::max(0.,(1-(std::abs(configuration[order_id]-right_point))/(right_point-left_point)));
               assert(coeff >= 0);
-	    }
-	  }
-	  std::vector<double> factor_row_list;
-//	  factor_row_list.reserve(rank*this->order);
-	  int interp_counter = 0;
-	  int factor_matrix_offset = 0;
+            }
+          }
+          std::vector<double> factor_row_list;
+//          factor_row_list.reserve(rank*this->order);
+          int interp_counter = 0;
+          int factor_matrix_offset = 0;
           int fmesvd_offset=0;
           // Concatenate all of the factor matrix elements necessary to perform multilinear product
           for (int l=0; l<this->order; l++){
@@ -1682,12 +1658,10 @@ double cprg_model::predict(const double* configuration) const{
                   factor_row_list.push_back(fm[factor_matrix_offset + node[l]*rank+ll]);
                 }
               } else if (decisions[l]==1){
-                assert(_hyperparameters->_partition_spacing[l]!=parameter_range_partition::SINGLE);
-                //TODO: Why do it this way? Why not the factor matri value and apply coefficient? I guess it might be the same thing, since we only care about one side? Verify this.
-                double left_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
-                double right_midpoint = get_midpoint_of_two_nodes(1, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
+                assert(_hyperparameters->partition_spacing[l]!=parameter_range_partition::SINGLE);
+                double left_midpoint = get_midpoint_of_two_nodes(0, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
+                double right_midpoint = get_midpoint_of_two_nodes(1, _parameters->num_partitions_per_dimension[l]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
                 for (int ll=0; ll<rank; ll++){
-                  //TODO: should use log or non-log transformation of right_midpoint,left_midpoint, configuration[l] and left_midpoint? Based on fixed_interval_spacing and whether configuration[l]==0?
                   assert(right_midpoint > left_midpoint);
                   double _slope = (fm[factor_matrix_offset+rank+ll]-fm[factor_matrix_offset+ll])/(right_midpoint - left_midpoint);
                   double _num = configuration[l]-left_midpoint;
@@ -1695,10 +1669,9 @@ double cprg_model::predict(const double* configuration) const{
                   factor_row_list.push_back(fm[factor_matrix_offset+ll] + _num*_slope);
                 }
               } else if (decisions[l]==2){
-                assert(_hyperparameters->_partition_spacing[l]!=parameter_range_partition::SINGLE);
-                //TODO: Why do it this way? Why not the factor matri value and apply coefficient? I guess it might be the same thing, since we only care about one side? Verify this.
-                double left_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-2, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
-                double right_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-1, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->_partition_spacing[l]);
+                assert(_hyperparameters->partition_spacing[l]!=parameter_range_partition::SINGLE);
+                double left_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-2, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
+                double right_midpoint = get_midpoint_of_two_nodes(_parameters->num_partitions_per_dimension[l]-1, _parameters->num_partitions_per_dimension[l]+1, &_parameters->knot_positions[_parameters->knot_index_offsets[l]], _hyperparameters->partition_spacing[l]);
                 for (int ll=0; ll<rank; ll++){
                   double _slope = (fm[factor_matrix_offset+(_parameters->num_partitions_per_dimension[l]-1)*rank+ll]-fm[factor_matrix_offset+(_parameters->num_partitions_per_dimension[l]-2)*rank+ll]);
                   assert(right_midpoint > left_midpoint);
@@ -1712,18 +1685,18 @@ double cprg_model::predict(const double* configuration) const{
                   double input_scale=1;
                   for (int kk=0; kk<1+_parameters->spline_degree; kk++){
                     ppp += input_scale*fmesvd[fmesvd_offset+kk];
-                    input_scale *= (_hyperparameters->_factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(configuration[l]) : configuration[l]);
+                    input_scale *= (_hyperparameters->factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(configuration[l]) : configuration[l]);
                   }
                   for (int lll=0; lll<rank; lll++){
-                    factor_row_list.push_back((_hyperparameters->_factor_matrix_element_transformation == runtime_transformation::LOG ? exp(ppp) : ppp)*fmesvd[fmesvd_offset+1+_parameters->spline_degree]*fmesvd[fmesvd_offset+2+_parameters->spline_degree+lll]);
+                    factor_row_list.push_back((_hyperparameters->factor_matrix_element_transformation == runtime_transformation::LOG ? exp(ppp) : ppp)*fmesvd[fmesvd_offset+1+_parameters->spline_degree]*fmesvd[fmesvd_offset+2+_parameters->spline_degree+lll]);
                   }
             }
           }
           factor_matrix_offset += _parameters->num_partitions_per_dimension[l]*rank;
-          if (this->param_types[l]==parameter_type::NUMERICAL) fmesvd_offset += (2+_hyperparameters->_max_spline_degree+rank);
+          if (this->param_types[l]==parameter_type::NUMERICAL) fmesvd_offset += (2+_hyperparameters->max_spline_degree+rank);
         }
         double t_val = multilinear_product_packed(&factor_row_list[0],factor_row_list.size(),this->order,rank);
-        if (_hyperparameters->_runtime_transformation==runtime_transformation::LOG){
+        if (_hyperparameters->runtime_transform==runtime_transformation::LOG){
           t_val = exp(t_val);
         }
         if (do_i_want_to_print_out) std::cout << "Coeff - " << coeff << std::endl;
@@ -1745,35 +1718,35 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
 
       std::vector<int> projection_set_size_threshold_ = {};
       if (projection_set_size_threshold_.size() < this->order){
-        projection_set_size_threshold_.resize(this->order,1);	// very small estimate
+        projection_set_size_threshold_.resize(this->order,1);// very small estimate
       }
       std::vector<std::vector<double>> valid_tensor_cell_points(this->order);
       int num_numerical_fm_rows=0;
       for (int i=0; i<this->numerical_modes.size(); i++){
         num_numerical_fm_rows += _parameters->num_partitions_per_dimension[this->numerical_modes[i]];
       }
-      _parameters->spline_degree = _hyperparameters->_max_spline_degree;
-      double* temporary_extrap_models = new double[(1+_hyperparameters->_max_spline_degree+1+_parameters->cp_rank)*num_numerical_fm_rows];
+      _parameters->spline_degree = _hyperparameters->max_spline_degree;
+      double* temporary_extrap_models = new double[(1+_hyperparameters->max_spline_degree+1+_parameters->cp_rank)*num_numerical_fm_rows];
       num_numerical_fm_rows=0;//reset as index into temporary_extrap_models
       int fme_offset = 0;
       for (int i=0; i<this->order; i++){
-	if (this->param_types[i] == parameter_type::CATEGORICAL) continue;
-	// Inspect the FM to identify the projected set size
-	int local_projected_set_size = 0;
-	int max_elem = *std::max_element(this->Projected_Omegas[i].begin(),this->Projected_Omegas[i].end());
-	for (int j=0; j<_parameters->num_partitions_per_dimension[i]; j++){
-	  assert(j<this->Projected_Omegas[i].size());
-	  if (this->Projected_Omegas[i][j] >= min(projection_set_size_threshold_[i],max_elem)){
-	    local_projected_set_size++;
-            if (_hyperparameters->_partition_spacing[i]==parameter_range_partition::SINGLE){
+        if (this->param_types[i] == parameter_type::CATEGORICAL) continue;
+        // Inspect the FM to identify the projected set size
+        int local_projected_set_size = 0;
+        int max_elem = *std::max_element(this->Projected_Omegas[i].begin(),this->Projected_Omegas[i].end());
+        for (int j=0; j<_parameters->num_partitions_per_dimension[i]; j++){
+          assert(j<this->Projected_Omegas[i].size());
+          if (this->Projected_Omegas[i][j] >= min(projection_set_size_threshold_[i],max_elem)){
+            local_projected_set_size++;
+            if (_hyperparameters->partition_spacing[i]==parameter_range_partition::SINGLE){
               valid_tensor_cell_points[i].push_back(_parameters->knot_positions[j+_parameters->knot_index_offsets[i]]);
             } else{
               assert(!(j+1 == _parameters->num_partitions_per_dimension[i]+1));
-              valid_tensor_cell_points[i].push_back(get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->_partition_spacing[i]));
+              valid_tensor_cell_points[i].push_back(get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]));
             }
             assert(valid_tensor_cell_points[i][local_projected_set_size-1]>0);
-	  }
-	}
+          }
+        }
         assert(local_projected_set_size>0);
         assert(local_projected_set_size>=_parameters->cp_rank );
         if (_parameters->cp_rank > local_projected_set_size) { assert(0); continue; } 
@@ -1804,12 +1777,10 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
       // Curate the Perron vector: make it positive (which is always possible, see Thereom), but also restrict to constructing model solely out of strictly-increasing elements
       int num_elements_to_keep = local_projected_set_size;// should be <= local_projected_set_size
       for (int j=0; j<local_projected_set_size; j++){
-	 if (left_singular_matrix[j]<0) left_singular_matrix[j] *= (-1);
+         if (left_singular_matrix[j]<0) left_singular_matrix[j] *= (-1);
        }
        for (int j=0; j<_parameters->cp_rank; j++){
-	 //TODO: Note, this may be wrong due to how VT/V is accessed.
-	 //if (ptr_to_data2[j]<0) ptr_to_data2[j] *= (-1);
-	 if (right_singular_matrix[j*_parameters->cp_rank]<0) right_singular_matrix[j] = (-1)*right_singular_matrix[j*_parameters->cp_rank];
+         if (right_singular_matrix[j*_parameters->cp_rank]<0) right_singular_matrix[j] = (-1)*right_singular_matrix[j*_parameters->cp_rank];
        }
        assert(singular_value[0]>0);
 
@@ -1819,16 +1790,16 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
       if (world_rank==0){
         std::cout << "Extrapolation with factor matrix " << i << ", which has size " << _parameters->num_partitions_per_dimension[i] << " " << _parameters->cp_rank << std::endl;
         std::cout << _parameters->num_partitions_per_dimension[0] << " " << _parameters->num_partitions_per_dimension[1] << " " << _parameters->num_partitions_per_dimension[2] << std::endl;
-	for (int j=0; j<_parameters->num_partitions_per_dimension[0]; j++) std::cout << this->Projected_Omegas[0][j] << " ";
-	std::cout << "\n";
-	for (int j=0; j<_parameters->num_partitions_per_dimension[1]; j++) std::cout << this->Projected_Omegas[1][j] << " ";
-	std::cout << "\n";
-	for (int j=0; j<local_projected_set_size*_parameters->cp_rank; j++) std::cout << left_singular_matrix[j] << " ";
-	std::cout << "\n";
-	for (int j=0; j<_parameters->cp_rank; j++) std::cout << singular_value[j] << " ";
-	std::cout << "\n";
-	for (int j=0; j<_parameters->cp_rank*_parameters->cp_rank; j++) std::cout << right_singular_matrix[j] << " ";
-	std::cout << "\n";
+        for (int j=0; j<_parameters->num_partitions_per_dimension[0]; j++) std::cout << this->Projected_Omegas[0][j] << " ";
+        std::cout << "\n";
+        for (int j=0; j<_parameters->num_partitions_per_dimension[1]; j++) std::cout << this->Projected_Omegas[1][j] << " ";
+        std::cout << "\n";
+        for (int j=0; j<local_projected_set_size*_parameters->cp_rank; j++) std::cout << left_singular_matrix[j] << " ";
+        std::cout << "\n";
+        for (int j=0; j<_parameters->cp_rank; j++) std::cout << singular_value[j] << " ";
+        std::cout << "\n";
+        for (int j=0; j<_parameters->cp_rank*_parameters->cp_rank; j++) std::cout << right_singular_matrix[j] << " ";
+        std::cout << "\n";
       }
 */
 
@@ -1836,16 +1807,16 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
        // Create simple linear model from ptr_to_data
        std::vector<double> feature_matrix(num_elements_to_keep*(1+_parameters->spline_degree),1.);
        for (int j=1; j<=_parameters->spline_degree; j++){
-	 for (int k=0; k<num_elements_to_keep; k++){
-	   //double midpoint_val = get_midpoint_of_two_nodes(k,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],this->interval_spacing[i]);
-	   assert(k<valid_tensor_cell_points[i].size());
-	   double point_val = valid_tensor_cell_points[i][k];
-	   assert(point_val>0);
-	   feature_matrix[num_elements_to_keep*j+k] = feature_matrix[num_elements_to_keep*(j-1)+k] * (_hyperparameters->_factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(point_val) : point_val);
-	 }
+         for (int k=0; k<num_elements_to_keep; k++){
+           //double midpoint_val = get_midpoint_of_two_nodes(k,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],this->interval_spacing[i]);
+           assert(k<valid_tensor_cell_points[i].size());
+           double point_val = valid_tensor_cell_points[i][k];
+           assert(point_val>0);
+           feature_matrix[num_elements_to_keep*j+k] = feature_matrix[num_elements_to_keep*(j-1)+k] * (_hyperparameters->factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(point_val) : point_val);
+         }
        }
        for (int k=0; k<num_elements_to_keep; k++){
-	 left_singular_matrix[k] = _hyperparameters->_factor_matrix_element_transformation==runtime_transformation::LOG ? log(left_singular_matrix[k]) : left_singular_matrix[k];
+         left_singular_matrix[k] = _hyperparameters->factor_matrix_element_transformation==runtime_transformation::LOG ? log(left_singular_matrix[k]) : left_singular_matrix[k];
        }
 /*
        if (world_rank == 0){
@@ -1915,7 +1886,6 @@ void cprg_model::read_from_file(std::ifstream& file){
   this->cpr_model::read_from_file(file);
 }
 void cprg_model::get_hyperparameters(hyperparameter_pack& pack) const{
-  //TODO: Do I need to use dynamic_cast here?
   this->hyperparameters->get(dynamic_cast<cprg_hyperparameter_pack&>(pack));
 }
 void cprg_model::set_hyperparameters(const hyperparameter_pack& pack){
