@@ -4,8 +4,25 @@
 #include <sys/time.h>
 #include <cassert>
 #include <cmath>
+#include <algorithm>
 
 #include "util.h"
+
+void shuffle_runtimes(int nc, int nparam, std::vector<double>& runtimes, std::vector<double>& configurations){
+  std::vector<int> indices(runtimes.size(),0);
+  for (int i=1; i<runtimes.size(); i++){
+    indices[i] = indices[i-1]+1;
+  }
+  std::random_shuffle(indices.begin(),indices.end());
+  auto configurations_copy = configurations;
+  auto runtimes_copy = runtimes;
+  for (int i=0; i<nc; i++){
+    runtimes[i] = runtimes_copy[indices[i]];
+    for (int j=0; j<nparam; j++){
+      configurations[i*nparam+j] = configurations_copy[indices[i]*nparam+j];
+    }
+  }
+}
 
 void print_model_info(performance_model::cpr_model_fit_info& info){
   print("Number of distinct configurations: ",info.num_distinct_configurations);

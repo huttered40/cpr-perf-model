@@ -73,6 +73,12 @@ int main(int argc, char** argv){
   performance_model::cprg_model_fit_info extrapolator_fit_info;
 
   int nc = runtimes.size();
+  if (argc>3){
+    if (atoi(argv[3])<nc){
+      nc = atoi(argv[3]);
+      shuffle_runtimes(nc,nparam,runtimes,configurations);
+    }
+  }
   const double* c = &configurations[0];
   const double* r = &runtimes[0];
   bool is_trained = interpolator->train(nc,c,r,false,&interpolator_fit_info);
@@ -92,13 +98,13 @@ int main(int argc, char** argv){
 
   evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,verbose);
 
-  if (argc>3){
-    interpolator->write_to_file(argv[3]);
-    interpolator->read_from_file(argv[3]);
-  }
   if (argc>4){
-    extrapolator->write_to_file(argv[4]);
-    extrapolator->read_from_file(argv[4]);
+    interpolator->write_to_file(argv[4]);
+    interpolator->read_from_file(argv[4]);
+  }
+  if (argc>5){
+    extrapolator->write_to_file(argv[5]);
+    extrapolator->read_from_file(argv[5]);
   }
 
   delete interpolator;

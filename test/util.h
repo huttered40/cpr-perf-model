@@ -32,6 +32,8 @@ struct evaluation_info{
   double max_aps_error{0};
 };
 
+void shuffle_runtimes(int nc, int nparam, std::vector<double>& runtimes, std::vector<double>& configurations);
+
 template<typename T>
 void print(const char* msg, T val){
   std::cout << msg << val << "\n";
