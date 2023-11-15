@@ -2,14 +2,19 @@
 
 Welcome!
 
-This repository hosts a software framework for multi-parameter performance modeling via tensor completion.
-See our preprint for experimental studies: [https://arxiv.org/abs/2210.10184]
+This repository hosts a software framework for multi-parameter application performance modeling via tensor completion.
+See our paper for experimental studies: [https://arxiv.org/abs/2210.10184]
 
-This Python (v2.7) framework leverages high-performance tensor computation software (publically available within the Cyclops Tensor Framework) to optimize canonical-polyadic tensor decomposition models from provided runtime data.
+This C++ framework leverages high-performance tensor computation software (publically available within the Cyclops Tensor Framework) to optimize canonical-polyadic tensor decomposition models from provided runtime data.
 
 ## Build and Use
-Clone `https://github.com/navjo2323/ctf` and update `PYTHONPATH` to reference the `lib_python` subdirectory within the cloned directory.
-Follow the build instructions in the provided repository link.
+First, clone `https://github.com/huttered40/ctf` and build using CTF's build system.
+Then, build cpr-perf-model by modifying the config.mk and running `make static` or `make shared`.
+Example programs using cpr-perf-model may be found in the `test` directory.
+See file `model_parameter_selection.sh` for optional selection of model hyperparameters at runtime.
+For additional information on our model interface, see src/model.h
+
+# For Python users
 
 Performance data is specified separately as training data within file `training_file` and test data within file `test_file`.
 Parameters and data within these files must be comma-delimited and castable to non-negative floats (e.g., categorical parameters must first be mapped onto a non-negative real number scale).
