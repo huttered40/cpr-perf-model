@@ -1747,22 +1747,36 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
             assert(valid_tensor_cell_points[i][local_projected_set_size-1]>0);
           }
         }
+
         assert(local_projected_set_size>0);
-        assert(local_projected_set_size>=_parameters->cp_rank );
-        if (_parameters->cp_rank > local_projected_set_size) { assert(0); continue; } 
-        assert(1+_parameters->spline_degree <= local_projected_set_size);
+        if (_parameters->cp_rank > local_projected_set_size ||
+            (1+_parameters->spline_degree > local_projected_set_size)){
+          //NOTE: If the assert is hit, then extrapolation likely won't be accurate, and you either need more samples or a smaller tensor and or smaller CP rank.
+          int jump = 1+_parameters->spline_degree+1+_parameters->cp_rank;
+          for (int k=0; k<jump; k++){
+            temporary_extrap_models[num_numerical_fm_rows*jump+k] = 1.;
+          }
+          num_numerical_fm_rows++;
+          fme_offset += _parameters->cp_rank*_parameters->num_partitions_per_dimension[i];
+          continue;
+        }
+
         double* reduced_matrix = new double[local_projected_set_size*_parameters->cp_rank];
         int column_count = 0;
         // reduced_matrix is column-major, as needed for LAPACK
         for (int j=0; j<_parameters->num_partitions_per_dimension[i]; j++){
           assert(j<this->Projected_Omegas[i].size());
           if (this->Projected_Omegas[i][j] >= min(projection_set_size_threshold_[i],max_elem)){
+//            std::cout << get_midpoint_of_two_nodes(j,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << ",";
             for (int k=0; k<_parameters->cp_rank; k++){
               reduced_matrix[column_count+local_projected_set_size*k] = _parameters->factor_matrix_elements[fme_offset+j*_parameters->cp_rank + k];
+//              std::cout << reduced_matrix[column_count+local_projected_set_size*k] << ",";
             }
+//            std::cout << "\n";
             column_count++;
           }
         }
+
         // Prep for a rank-1 SVD -- NOTE: We store all relevant columns/rows, not just low-rank factorization
         double* left_singular_matrix = new double[local_projected_set_size*_parameters->cp_rank];
         double* singular_value = new double[_parameters->cp_rank];
@@ -1783,6 +1797,11 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
          if (right_singular_matrix[j*_parameters->cp_rank]<0) right_singular_matrix[j] = (-1)*right_singular_matrix[j*_parameters->cp_rank];
        }
        assert(singular_value[0]>0);
+
+// Uncomment to get print out of Left Singular Vector of FM
+//      std::cout << "Left SV\n";
+//      for (int j=0; j<local_projected_set_size; j++) std::cout << get_midpoint_of_two_nodes(j,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << "," << left_singular_matrix[j] << "\n";
+//      std::cout << "End of Left SV\n";
 
 /*
       // Identify Perron vector: simply flip signs if necessary (of the first column only!)

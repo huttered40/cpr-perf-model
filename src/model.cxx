@@ -78,16 +78,18 @@ static bool aggregate_observations(int& num_configurations, const double*& confi
   }
   PMPI_Bcast(&local_configurations[0],local_num_configurations*order,MPI_DOUBLE,0,cm);
   PMPI_Bcast(&local_runtimes[0],local_num_configurations,MPI_DOUBLE,0,cm);
-  double* _runtimes = new double[local_num_configurations];
-  double* _configurations = new double[local_num_configurations*order];
+  double* new_runtimes = new double[local_num_configurations];
+  assert(new_runtimes != runtimes);
+  double* new_configurations = new double[local_num_configurations*order];
+  assert(new_configurations != configurations);
   for (int i=0; i<local_num_configurations; i++){
     for (int j=0; j<order; j++){
-      _configurations[i*order+j]=local_configurations[i*order+j];
+      new_configurations[i*order+j]=local_configurations[i*order+j];
     }
-    _runtimes[i]=local_runtimes[i];
+    new_runtimes[i]=local_runtimes[i];
   }
-  configurations = _configurations;
-  runtimes = _runtimes;
+  configurations = new_configurations;
+  runtimes = new_runtimes;
   num_configurations=local_num_configurations;
   return true;
 }
@@ -105,7 +107,7 @@ model_fit_info::~model_fit_info(){
 }
 
 model::model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack){
-  this->hyperparameters = new hyperparameter_pack(*pack);
+  this->hyperparameters = new hyperparameter_pack(pack==nullptr ? nparam : *pack);
   this->parameters = new parameter_pack();
   this->nparam = nparam;
   this->allocated_data = false;

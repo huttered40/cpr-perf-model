@@ -34,7 +34,7 @@ public:
 
 class model{
 public:
-  model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack);
+  model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack=nullptr);
   model(const model& rhs) = delete;
   model& operator=(const model& rhs) = delete;
   virtual ~model();
