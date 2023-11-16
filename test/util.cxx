@@ -272,6 +272,13 @@ void set_cprg_param_pack(int nparam, performance_model::cprg_hyperparameter_pack
   }
   if (verbose) std::cout << arg_pack.max_spline_degree << "\n";
 
+  env_var_ptr = std::getenv("CPPME_MAX_TRAINING_SET_SIZE");
+  if (env_var_ptr != NULL){
+    arg_pack.max_training_set_size = atoi(env_var_ptr);
+    custom_assert(arg_pack.max_training_set_size>0, "Invalid option for CPPME_MAX_TRAINING_SET_SIZE\n");
+  }
+  if (verbose) std::cout << arg_pack.max_spline_degree << "\n";
+
   env_var_ptr = std::getenv("CPPME_FACTOR_MATRIX_ELEMENT_TRANSFORM");
   if (env_var_ptr != NULL){
     if (std::string(env_var_ptr) == "NONE") arg_pack.factor_matrix_element_transformation = performance_model::runtime_transformation::NONE;

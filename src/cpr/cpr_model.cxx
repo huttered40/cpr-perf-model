@@ -1718,7 +1718,7 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
 
       std::vector<int> projection_set_size_threshold_ = {};
       if (projection_set_size_threshold_.size() < this->order){
-        projection_set_size_threshold_.resize(this->order,1);// very small estimate
+        projection_set_size_threshold_.resize(this->order,0);// very small estimate
       }
       std::vector<std::vector<double>> valid_tensor_cell_points(this->order);
       int num_numerical_fm_rows=0;
@@ -1761,10 +1761,12 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
           continue;
         }
 
+        assert(local_projected_set_size == _parameters->num_partitions_per_dimension[i]);
+        local_projected_set_size = std::min(local_projected_set_size,_hyperparameters->max_training_set_size);
         double* reduced_matrix = new double[local_projected_set_size*_parameters->cp_rank];
         int column_count = 0;
         // reduced_matrix is column-major, as needed for LAPACK
-        for (int j=0; j<_parameters->num_partitions_per_dimension[i]; j++){
+        for (int j=_parameters->num_partitions_per_dimension[i]-local_projected_set_size; j<_parameters->num_partitions_per_dimension[i]; j++){
           assert(j<this->Projected_Omegas[i].size());
           if (this->Projected_Omegas[i][j] >= min(projection_set_size_threshold_[i],max_elem)){
 //            std::cout << get_midpoint_of_two_nodes(j,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << ",";
@@ -1790,6 +1792,7 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
 
       // Curate the Perron vector: make it positive (which is always possible, see Thereom), but also restrict to constructing model solely out of strictly-increasing elements
       int num_elements_to_keep = local_projected_set_size;// should be <= local_projected_set_size
+      std::cout << "num_elements_to_keep - " << num_elements_to_keep << std::endl;
       for (int j=0; j<local_projected_set_size; j++){
          if (left_singular_matrix[j]<0) left_singular_matrix[j] *= (-1);
        }
@@ -1826,12 +1829,13 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
        // Create simple linear model from ptr_to_data
        std::vector<double> feature_matrix(num_elements_to_keep*(1+_parameters->spline_degree),1.);
        for (int j=1; j<=_parameters->spline_degree; j++){
-         for (int k=0; k<num_elements_to_keep; k++){
+         for (int k=_parameters->num_partitions_per_dimension[i]-num_elements_to_keep; k<_parameters->num_partitions_per_dimension[i]; k++){
            //double midpoint_val = get_midpoint_of_two_nodes(k,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],this->interval_spacing[i]);
            assert(k<valid_tensor_cell_points[i].size());
            double point_val = valid_tensor_cell_points[i][k];
            assert(point_val>0);
-           feature_matrix[num_elements_to_keep*j+k] = feature_matrix[num_elements_to_keep*(j-1)+k] * (_hyperparameters->factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(point_val) : point_val);
+           int feature_matrix_idx = k-(_parameters->num_partitions_per_dimension[i]-num_elements_to_keep);
+           feature_matrix[num_elements_to_keep*j+feature_matrix_idx] = feature_matrix[num_elements_to_keep*(j-1)+feature_matrix_idx] * (_hyperparameters->factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(point_val) : point_val);
          }
        }
        for (int k=0; k<num_elements_to_keep; k++){

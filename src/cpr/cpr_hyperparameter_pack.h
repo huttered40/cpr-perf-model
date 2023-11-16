@@ -65,6 +65,7 @@ public:
   virtual void read_from_file(std::ifstream& file);
 
   int max_spline_degree;
+  int max_training_set_size;// number of elements to consider starting from the largest observed
   runtime_transformation factor_matrix_element_transformation;
   parameter_transformation factor_matrix_underlying_position_transformation;
 };

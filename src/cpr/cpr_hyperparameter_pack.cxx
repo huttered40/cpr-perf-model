@@ -1,4 +1,5 @@
 #include <cassert>
+#include <climits>
 
 #include "cpr_hyperparameter_pack.h"
 #include "cpr_types.h"
@@ -221,12 +222,14 @@ void cpr_hyperparameter_pack::read_from_file(std::ifstream& file){
 cprg_hyperparameter_pack::cprg_hyperparameter_pack(int nparam) : cpr_hyperparameter_pack(nparam){
   // Default
   this->max_spline_degree=1;
+  this->max_training_set_size=INT_MAX;
   this->factor_matrix_element_transformation = runtime_transformation::LOG;
   this->factor_matrix_underlying_position_transformation = parameter_transformation::LOG;
 }
 
 cprg_hyperparameter_pack::cprg_hyperparameter_pack(const cprg_hyperparameter_pack& rhs) : cpr_hyperparameter_pack(rhs){
   this->max_spline_degree = rhs.max_spline_degree;
+  this->max_training_set_size = rhs.max_training_set_size;
   this->factor_matrix_element_transformation = rhs.factor_matrix_element_transformation;
   this->factor_matrix_underlying_position_transformation = rhs.factor_matrix_underlying_position_transformation;
 }
@@ -235,6 +238,7 @@ void cprg_hyperparameter_pack::get(hyperparameter_pack& rhs) const{
   this->cpr_hyperparameter_pack::get(rhs);
   cprg_hyperparameter_pack& rhs_derived = dynamic_cast<cprg_hyperparameter_pack&>(rhs);
   rhs_derived.max_spline_degree = this->max_spline_degree;
+  rhs_derived.max_training_set_size = this->max_training_set_size;
   rhs_derived.factor_matrix_element_transformation = this->factor_matrix_element_transformation;
   rhs_derived.factor_matrix_underlying_position_transformation = this->factor_matrix_underlying_position_transformation;
 }
@@ -243,6 +247,7 @@ void cprg_hyperparameter_pack::set(const hyperparameter_pack& rhs){
   this->cpr_hyperparameter_pack::set(rhs);
   const cprg_hyperparameter_pack& rhs_derived = dynamic_cast<const cprg_hyperparameter_pack&>(rhs);
   this->max_spline_degree = rhs_derived.max_spline_degree;
+  this->max_training_set_size = rhs_derived.max_training_set_size;
   this->factor_matrix_element_transformation = rhs_derived.factor_matrix_element_transformation;
   this->factor_matrix_underlying_position_transformation = rhs_derived.factor_matrix_underlying_position_transformation;
 }
@@ -253,6 +258,7 @@ void cprg_hyperparameter_pack::write_to_file(std::ofstream& file) const{
   if (!file.is_open()) return;
   this->cpr_hyperparameter_pack::write_to_file(file);
   file << this->max_spline_degree << "\n";
+  file << this->max_training_set_size << "\n";
   if (this->factor_matrix_element_transformation == runtime_transformation::NONE){
     file << "NONE\n";
   } else if (this->factor_matrix_element_transformation == runtime_transformation::LOG){
@@ -269,6 +275,7 @@ void cprg_hyperparameter_pack::read_from_file(std::ifstream& file){
   if (!file.is_open()) return;
   this->cpr_hyperparameter_pack::read_from_file(file);
   file >> this->max_spline_degree;
+  file >> this->max_training_set_size;
   std::string temp;
   file >> temp;
   if (temp == "NONE"){
