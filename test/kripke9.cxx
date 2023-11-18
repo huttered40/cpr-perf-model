@@ -95,7 +95,7 @@ int main(int argc, char** argv){
   print_model_info(interpolator_fit_info);
   print_model_info(extrapolator_fit_info);
 
-  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,verbose);
+  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,interpolator_pack,extrapolator_pack,interpolator_fit_info,extrapolator_fit_info,argv[6],verbose);
 
   if (argc>4){
     interpolator->write_to_file(argv[4]);

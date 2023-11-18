@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <cstdio>
 #include <time.h>
 #include <sys/time.h>
@@ -24,7 +25,7 @@ void shuffle_runtimes(int nc, int nparam, std::vector<double>& runtimes, std::ve
   }
 }
 
-void print_model_info(performance_model::cpr_model_fit_info& info){
+void print_model_info(const performance_model::cpr_model_fit_info& info){
   print("Number of distinct configurations: ",info.num_distinct_configurations);
   print("Number of tensor elements: ",info.num_tensor_elements);
   print("Tensor density: ",info.tensor_density);
@@ -299,7 +300,18 @@ bool is_verbose(){
   } else return false;
 }
 
-void evaluate(int nparam, int size, std::vector<double>& runtimes, std::vector<double>& configurations, performance_model::model* interpolator, performance_model::model* extrapolator, bool verbose){
+void evaluate(int nparam,
+              int size,
+              std::vector<double>& runtimes,
+              std::vector<double>& configurations,
+              performance_model::model* interpolator,
+              performance_model::model* extrapolator,
+              const performance_model::cpr_hyperparameter_pack& interpolator_pack,
+              const performance_model::cprg_hyperparameter_pack& extrapolator_pack,
+              const performance_model::cpr_model_fit_info& interpolator_info,
+              const performance_model::cpr_model_fit_info& extrapolator_info,
+              const char* file_name,
+              bool verbose){
   evaluation_info info;
   for (int i=0; i<size; i++){
     double start_inference_latency = get_wall_time();
@@ -339,4 +351,61 @@ void evaluate(int nparam, int size, std::vector<double>& runtimes, std::vector<d
   std::cout << "Maximum APS prediction error: " << info.max_aps_error << "\n";
   std::cout << "Average inference latency: " << info.avg_inference_latency << "\n"; 
   std::cout << "Maximum inference latency: " << info.max_inference_latency << "\n"; 
+
+  // No need to print out hyperparameter_pack member variables. None are relevant.
+  // No need to print out piecewise_hyperparameter_pack member variables. None are relevant.
+
+  std::ofstream file_stream;
+  file_stream.open(file_name,std::ios::app);
+  file_stream << extrapolator_pack.cp_rank << ",";
+  file_stream << extrapolator_pack.regularization << ",";
+  file_stream << extrapolator_pack.optimization_convergence_tolerance_for_re_init << ",";
+  file_stream << extrapolator_pack.interpolation_factor_tolerance << ",";
+  file_stream << extrapolator_pack.max_num_optimization_sweeps << ",";
+  file_stream << extrapolator_pack.optimization_convergence_tolerance << ",";
+  file_stream << extrapolator_pack.factor_matrix_optimization_max_num_iterations << ",";
+  file_stream << extrapolator_pack.factor_matrix_optimization_convergence_tolerance << ",";
+  file_stream << extrapolator_pack.optimization_barrier_start << ",";
+  file_stream << extrapolator_pack.optimization_barrier_stop << ",";
+  file_stream << extrapolator_pack.optimization_barrier_reduction_factor << ",";
+  file_stream << extrapolator_pack.max_spline_degree << ",";
+  file_stream << extrapolator_pack.max_training_set_size << ",";
+  if (extrapolator_pack.factor_matrix_element_transformation == performance_model::runtime_transformation::NONE){
+    file_stream << "NONE,";
+  } else if (extrapolator_pack.factor_matrix_element_transformation == performance_model::runtime_transformation::LOG){
+    file_stream << "LOG,";
+  }
+  if (extrapolator_pack.factor_matrix_underlying_position_transformation == performance_model::parameter_transformation::NONE){
+    file_stream << "NONE,";
+  } else if (extrapolator_pack.factor_matrix_underlying_position_transformation == performance_model::parameter_transformation::LOG){
+    file_stream << "LOG,";
+  }
+
+  file_stream << info.mlogq_error << ",";
+  file_stream << info.max_logq_error << ",";
+  file_stream << info.mlogqabs_error << ",";
+  file_stream << info.max_logqabs_error << ",";
+  file_stream << info.mlogq2_error << ",";
+  file_stream << info.max_logq2_error << ",";
+  file_stream << info.maps_error << ",";
+  file_stream << info.max_aps_error << ",";
+  file_stream << info.avg_inference_latency << ",";
+  file_stream << info.max_inference_latency << ",";
+/*
+  file_stream << interpolator_info.num_distinct_configurations << ",";
+  file_stream << interpolator_info.num_tensor_elements << ",";
+  file_stream << interpolator_info.tensor_density << ",";
+  file_stream << interpolator_info.loss << ",";
+  file_stream << interpolator_info.quadrature_error << ",";
+  file_stream << interpolator_info.low_rank_approximation_error << ",";
+  file_stream << interpolator_info.training_error << ",";
+*/
+  file_stream << extrapolator_info.num_distinct_configurations << ",";
+  file_stream << extrapolator_info.num_tensor_elements << ",";
+  file_stream << extrapolator_info.tensor_density << ",";
+  file_stream << extrapolator_info.loss << ",";
+  file_stream << extrapolator_info.quadrature_error << ",";
+  file_stream << extrapolator_info.low_rank_approximation_error << ",";
+  file_stream << extrapolator_info.training_error << ",";
+  file_stream << "\n";
 }

@@ -44,7 +44,7 @@ void print(const char* msg, T val1, U val2){
   std::cout << msg << val1 << ": " << val2 << "\n";
 }
 
-void print_model_info(performance_model::cpr_model_fit_info& info);
+void print_model_info(const performance_model::cpr_model_fit_info& info);
 
 void custom_assert(bool alert, const char* msg);
 
@@ -58,4 +58,10 @@ void set_cprg_param_pack(int nparam, performance_model::cprg_hyperparameter_pack
 
 bool is_verbose();
 
-void evaluate(int nparam, int size, std::vector<double>& runtimes, std::vector<double>& configurations, performance_model::model* interpolator, performance_model::model* extrapolator, bool verbose=false);
+void evaluate(int nparam, int size, std::vector<double>& runtimes, std::vector<double>& configurations, performance_model::model* interpolator, performance_model::model* extrapolator,
+              const performance_model::cpr_hyperparameter_pack& interpolator_pack,
+              const performance_model::cprg_hyperparameter_pack& extrapolator_pack,
+              const performance_model::cpr_model_fit_info& interpolator_info,
+              const performance_model::cpr_model_fit_info& extrapolator_info,
+              const char* file_name,
+              bool verbose=false);

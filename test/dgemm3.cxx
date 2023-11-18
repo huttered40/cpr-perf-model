@@ -67,9 +67,9 @@ int main(int argc, char** argv){
   performance_model::cprg_model_fit_info extrapolator_fit_info;
 
   int nc = runtimes.size();
-  if (argc>3){
-    if (atoi(argv[3])<nc){
-      nc = atoi(argv[3]);
+  if (argc>4){
+    if (atoi(argv[4])<nc){
+      nc = atoi(argv[4]);
       shuffle_runtimes(nc,nparam,runtimes,configurations);
     }
   }
@@ -90,15 +90,15 @@ int main(int argc, char** argv){
   print_model_info(interpolator_fit_info);
   print_model_info(extrapolator_fit_info);
 
-  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,verbose);
+  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,interpolator_pack,extrapolator_pack,interpolator_fit_info,extrapolator_fit_info,argv[3],verbose);
 
-  if (argc>4){
-    interpolator->write_to_file(argv[4]);
-    interpolator->read_from_file(argv[4]);
-  }
   if (argc>5){
-    extrapolator->write_to_file(argv[5]);
-    extrapolator->read_from_file(argv[5]);
+    interpolator->write_to_file(argv[5]);
+    interpolator->read_from_file(argv[5]);
+  }
+  if (argc>6){
+    extrapolator->write_to_file(argv[6]);
+    extrapolator->read_from_file(argv[6]);
   }
 
   delete interpolator;
