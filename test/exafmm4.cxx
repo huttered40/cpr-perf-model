@@ -1,6 +1,6 @@
 // Train data on a single process.
-// Kernel/Application: bcast
-// Configuration parameters: 3 numerical (input) parameters (matrix dimensions message size, node count, process-per-node code in MPI interface)
+// Kernel/Application: exafmm
+// Configuration parameters: 6 numerical and categorical (input) parameters
 // Read training data from file provided at command line
 // Set model hyperparameters via setting environment variables
 
@@ -19,16 +19,18 @@ void get_dataset(const char* dataset_file_path, int order, std::vector<double>& 
   // Read in column header
   getline(my_file,temp_num,'\n');
 
-  // Input from columns {1,2,3}
-  // Data from columns {4}
+  // Input from columns {2,3,4,6}
+  // Data from columns {15}
   while (getline(my_file,temp_num,',')){
-    for (int i=0; i<order; i++){
+    getline(my_file,temp_num,',');
+    for (int i=0; i<order+1; i++){
       getline(my_file,temp_num,',');
-      configurations.push_back(atof(temp_num.c_str()));
+      if (i!=3) configurations.push_back(atof(temp_num.c_str()));
     }
+    for (int i=0; i<6; i++) getline(my_file,temp_num,',');
     getline(my_file,temp_num,',');
     runtimes.push_back(atof(temp_num.c_str()));
-    getline(my_file,temp_num,'\n');// read in standard deviation
+    getline(my_file,temp_num,'\n');// read in rest
   }
 }
 
@@ -39,7 +41,7 @@ int main(int argc, char** argv){
 
   MPI_Init(&argc,&argv);
 
-  constexpr int nparam = 3;
+  constexpr int nparam = 4;
   std::vector<performance_model::parameter_type> param_types(nparam,performance_model::parameter_type::NUMERICAL);
   char* dataset_file_path = argv[1];
   bool verbose = is_verbose();
@@ -58,7 +60,17 @@ int main(int argc, char** argv){
   set_cpr_param_pack(nparam,interpolator_pack,get_cpr_model_hyperparameter_options(),verbose);
   performance_model::cprg_hyperparameter_pack extrapolator_pack(nparam);
   set_cprg_param_pack(nparam,extrapolator_pack,verbose);
-  for (int i=1; i<3; i++){
+  for (int i=0; i<nparam; i++){
+    if (i==2){
+      interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
+      extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
+      continue;
+    }
+    else if (i==3){
+      interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
+      extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
+      continue;
+    }
     interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
     extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
   }

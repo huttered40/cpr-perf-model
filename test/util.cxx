@@ -299,7 +299,18 @@ bool is_verbose(){
   } else return false;
 }
 
-void evaluate(int nparam, int size, std::vector<double>& runtimes, std::vector<double>& configurations, performance_model::model* interpolator, performance_model::model* extrapolator, bool verbose){
+void evaluate(int nparam,
+              int size,
+              std::vector<double>& runtimes,
+              std::vector<double>& configurations,
+              performance_model::model* interpolator,
+              performance_model::model* extrapolator,
+              const performance_model::cpr_hyperparameter_pack& interpolator_pack,
+              const performance_model::cprg_hyperparameter_pack& extrapolator_pack,
+              const performance_model::cpr_model_fit_info& interpolator_info,
+              const performance_model::cpr_model_fit_info& extrapolator_info,
+              const char* file_name,
+              bool verbose){
   evaluation_info info;
   for (int i=0; i<size; i++){
     double start_inference_latency = get_wall_time();
@@ -339,4 +350,50 @@ void evaluate(int nparam, int size, std::vector<double>& runtimes, std::vector<d
   std::cout << "Maximum APS prediction error: " << info.max_aps_error << "\n";
   std::cout << "Average inference latency: " << info.avg_inference_latency << "\n"; 
   std::cout << "Maximum inference latency: " << info.max_inference_latency << "\n"; 
+
+  // No need to print out hyperparameter_pack member variables. None are relevant.
+  // No need to print out piecewise_hyperparameter_pack member variables. None are relevant.
+
+  std::ofstream file_stream;
+  file_stream.open(file_name,std::ios::app);
+  file_stream << interpolator_pack.partitions_per_dimension << ",";
+  file_stream << interpolator_pack.cp_rank << ",";
+  file_stream << interpolator_pack.regularization << ",";
+  file_stream << interpolator_pack.optimization_convergence_tolerance_for_re_init << ",";
+  file_stream << interpolator_pack.interpolation_factor_tolerance << ",";
+  file_stream << interpolator_pack.max_num_optimization_sweeps << ",";
+  file_stream << interpolator_pack.optimization_convergence_tolerance << ",";
+  file_stream << interpolator_pack.factor_matrix_optimization_max_num_iterations << ",";
+  file_stream << interpolator_pack.factor_matrix_optimization_convergence_tolerance << ",";
+  file_stream << interpolator_pack.optimization_barrier_start << ",";
+  file_stream << interpolator_pack.optimization_barrier_stop << ",";
+  file_stream << interpolator_pack.optimization_barrier_reduction_factor << ",";
+
+  file_stream << info.mlogq_error << ",";
+  file_stream << info.max_logq_error << ",";
+  file_stream << info.mlogqabs_error << ",";
+  file_stream << info.max_logqabs_error << ",";
+  file_stream << info.mlogq2_error << ",";
+  file_stream << info.max_logq2_error << ",";
+  file_stream << info.maps_error << ",";
+  file_stream << info.max_aps_error << ",";
+  file_stream << info.avg_inference_latency << ",";
+  file_stream << info.max_inference_latency << ",";
+/*
+  file_stream << interpolator_info.num_distinct_configurations << ",";
+  file_stream << interpolator_info.num_tensor_elements << ",";
+  file_stream << interpolator_info.tensor_density << ",";
+  file_stream << interpolator_info.loss << ",";
+  file_stream << interpolator_info.quadrature_error << ",";
+  file_stream << interpolator_info.low_rank_approximation_error << ",";
+  file_stream << interpolator_info.training_error << ",";
+*/
+  file_stream << interpolator_info.num_distinct_configurations << ",";
+  file_stream << interpolator_info.num_tensor_elements << ",";
+  file_stream << interpolator_info.tensor_density << ",";
+  file_stream << interpolator_info.loss << ",";
+  file_stream << interpolator_info.quadrature_error << ",";
+  file_stream << interpolator_info.low_rank_approximation_error << ",";
+  file_stream << interpolator_info.training_error << ",";
+  file_stream << "\n";
 }

@@ -60,8 +60,17 @@ int main(int argc, char** argv){
   set_cpr_param_pack(nparam,interpolator_pack,get_cpr_model_hyperparameter_options(),verbose);
   performance_model::cprg_hyperparameter_pack extrapolator_pack(nparam);
   set_cprg_param_pack(nparam,extrapolator_pack,verbose);
-  for (int i=0; i<6; i++){
-    if (i==2) { continue; }
+  for (int i=0; i<nparam; i++){
+    if (i==2){
+      interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
+      extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
+      continue;
+    }
+    else if (i==3){
+      interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
+      extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
+      continue;
+    }
     interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
     extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
   }
@@ -73,21 +82,21 @@ int main(int argc, char** argv){
   performance_model::cprg_model_fit_info extrapolator_fit_info;
 
   int nc = runtimes.size();
-  if (argc>3){
-    if (atoi(argv[3])<nc){
-      nc = atoi(argv[3]);
+  if (argc>4){
+    if (atoi(argv[4])<nc){
+      nc = atoi(argv[4]);
       shuffle_runtimes(nc,nparam,runtimes,configurations);
     }
   }
+  int nc2=nc;
   const double* c = &configurations[0];
   const double* r = &runtimes[0];
   bool is_trained = interpolator->train(nc,c,r,false,&interpolator_fit_info);
   assert(is_trained);
 
-  nc = runtimes.size();
   c = &configurations[0];
   r = &runtimes[0];
-  is_trained = extrapolator->train(nc,c,r,false,&extrapolator_fit_info);
+  is_trained = extrapolator->train(nc2,c,r,false,&extrapolator_fit_info);
   assert(is_trained);
 
   interpolator->get_hyperparameters(interpolator_pack);
@@ -96,15 +105,16 @@ int main(int argc, char** argv){
   print_model_info(interpolator_fit_info);
   print_model_info(extrapolator_fit_info);
 
-  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,verbose);
+  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,
+           interpolator_pack,extrapolator_pack,interpolator_fit_info,extrapolator_fit_info,argv[3],verbose);
 
-  if (argc>4){
-    interpolator->write_to_file(argv[4]);
-    interpolator->read_from_file(argv[4]);
-  }
   if (argc>5){
-    extrapolator->write_to_file(argv[5]);
-    extrapolator->read_from_file(argv[5]);
+    interpolator->write_to_file(argv[5]);
+    interpolator->read_from_file(argv[5]);
+  }
+  if (argc>6){
+    extrapolator->write_to_file(argv[6]);
+    extrapolator->read_from_file(argv[6]);
   }
 
   delete interpolator;
