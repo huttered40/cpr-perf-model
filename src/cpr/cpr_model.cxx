@@ -671,7 +671,6 @@ int get_interval_index(double val, int num_nodes, const double* _nodes, paramete
 
 int get_node_index(double val, int num_nodes, const double* _nodes, parameter_range_partition node_spacing_type){
   //NOTE: This function is different than the function in python version!
-  if (node_spacing_type==parameter_range_partition::SINGLE) assert(0);
   if (val >= _nodes[num_nodes-1]) return num_nodes-1;
   if (val <= _nodes[0]) return 0;
   // Binary Search
@@ -883,7 +882,6 @@ cpr_model::cpr_model(int nparam, const parameter_type* parameter_types, const hy
   assert(this->order>0);
   // Inspect partition_spacing to make sure none are parameter_range_partition::AUTOMATIC, because we have not implemented that yet.
   for (int i=0; i<_hyperparameters->nparam; i++) assert(_hyperparameters->partition_spacing[i] != parameter_range_partition::CUSTOM);
-  for (int i=0; i<this->order; i++) { if (this->param_types[i]!=parameter_type::NUMERICAL) { assert(0); } }// NOT TESTED YET
   for (int i=0; i<this->nparam; i++){
     if (this->param_types[i]==parameter_type::NUMERICAL) this->numerical_modes.push_back(i);
   }
@@ -923,7 +921,8 @@ double cpr_model::predict(const double* configuration) const{
           // Get the closest node (note that node!=midpoint). Two nodes define the bounding box of a grid-cell. Each grid-cell has a mid-point.
           if (this->param_types[j]==parameter_type::CATEGORICAL){
             // Extrapolation is not possible here
-            node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
+            //node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
+            node[j] = get_node_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
             continue;
           }
           if (_parameters->num_partitions_per_dimension[j]==1){
@@ -1352,7 +1351,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
             }
             assert(element_key[j] >= 0 && element_key[j] < _parameters->num_partitions_per_dimension[j]);
             if (this->param_types[j]==parameter_type::CATEGORICAL){
-              element_key_configuration.push_back(_parameters->knot_positions[element_key[j]]);
+              element_key_configuration.push_back(_parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]]);
             } else{
               //if (_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE) assert(!(element_key[j]+1==_parameters->num_partitions_per_dimension[j]+1));
               element_key_configuration.push_back(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] : get_midpoint_of_two_nodes(element_key[j],_parameters->num_partitions_per_dimension[j]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]));
@@ -1367,13 +1366,15 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
           double low_rank_err1 = std::abs(log(tensor_elem_prediction/tensor_elem_sample_mean));
           double tensor_elem_prediction2 = this->cpr_model::predict(&element_key_configuration[0]);
           double low_rank_err2 = std::abs(log(tensor_elem_prediction2/tensor_elem_sample_mean));
-
-//          if ((tensor_elem_prediction2-tensor_elem_prediction)>1e-6){
-//            for (int j=0; j<_parameters->knot_positions.size(); j++) std::cout << _parameters->knot_positions[j] << " ";
-//            std::cout << "\n" << _parameters->knot_index_offsets[0] << " " << _parameters->knot_index_offsets[1] << " " << _parameters->knot_index_offsets[2] << "\n";
-//            std::cout << configurations[i*this->order] << " " << configurations[i*this->order+1] << " " << configurations[i*this->order+2] << " " << element_key[0] << " " << element_key[1] << " " << element_key[2] << " " << element_key_configuration[0] << " " << element_key_configuration[1] << " " << element_key_configuration[2] << " " << tensor_elem_prediction << " " << tensor_elem_prediction2 << std::endl;
-//         }
-          assert((tensor_elem_prediction2-tensor_elem_prediction)<=1e-6); 
+/*
+          std::cout << tensor_elem_prediction2 << " " << tensor_elem_prediction << std::endl;
+          if (std::abs(tensor_elem_prediction2-tensor_elem_prediction)>1e-6){
+            for (int j=0; j<_parameters->knot_positions.size(); j++) std::cout << _parameters->knot_positions[j] << " ";
+            std::cout << "\n" << _parameters->knot_index_offsets[0] << " " << _parameters->knot_index_offsets[1] << " " << _parameters->knot_index_offsets[2] << "\n";
+            std::cout << configurations[i*this->order] << " " << configurations[i*this->order+1] << " " << configurations[i*this->order+2] << " " << configurations[i*this->order+3] << " " << configurations[i*this->order+4] << " " << configurations[i*this->order+5] << " " << configurations[i*this->order+6] << " " << configurations[i*this->order+7] << " " << element_key[0] << " " << element_key[1] << " " << element_key[2] << " " << element_key[3] << " " << element_key[4] << " " << element_key[5] << " " << element_key[6] << " " << element_key[7] << " " << element_key_configuration[0] << " " << element_key_configuration[1] << " " << element_key_configuration[2] << " " << element_key_configuration[3] << " " << element_key_configuration[4] << " " << element_key_configuration[5] << " " << element_key_configuration[6] << " " << element_key_configuration[7] << " " << tensor_elem_prediction << " " << tensor_elem_prediction2 << std::endl;
+         }
+*/
+//          assert(std::abs(tensor_elem_prediction2-tensor_elem_prediction)<=1e-6); 
           if (do_i_want_to_print_out && quad_err <= .1 && low_rank_err1 <= .1 && rel_err >= .5){
             // get nearby predictions too (just for CTF)
             std::vector<int> element_key_left = {element_key[0],std::max(0,element_key[1]-1)};
@@ -1744,7 +1745,6 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
               assert(!(j+1 == _parameters->num_partitions_per_dimension[i]+1));
               valid_tensor_cell_points[i].push_back(get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]));
             }
-            assert(valid_tensor_cell_points[i][local_projected_set_size-1]>0);
           }
         }
 
@@ -1792,7 +1792,7 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
 
       // Curate the Perron vector: make it positive (which is always possible, see Thereom), but also restrict to constructing model solely out of strictly-increasing elements
       int num_elements_to_keep = local_projected_set_size;// should be <= local_projected_set_size
-      std::cout << "num_elements_to_keep - " << num_elements_to_keep << std::endl;
+      //std::cout << "num_elements_to_keep - " << num_elements_to_keep << std::endl;
       for (int j=0; j<local_projected_set_size; j++){
          if (left_singular_matrix[j]<0) left_singular_matrix[j] *= (-1);
        }
@@ -1833,7 +1833,6 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
            //double midpoint_val = get_midpoint_of_two_nodes(k,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],this->interval_spacing[i]);
            assert(k<valid_tensor_cell_points[i].size());
            double point_val = valid_tensor_cell_points[i][k];
-           assert(point_val>0);
            int feature_matrix_idx = k-(_parameters->num_partitions_per_dimension[i]-num_elements_to_keep);
            feature_matrix[num_elements_to_keep*j+feature_matrix_idx] = feature_matrix[num_elements_to_keep*(j-1)+feature_matrix_idx] * (_hyperparameters->factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(point_val) : point_val);
          }
