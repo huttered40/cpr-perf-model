@@ -74,40 +74,6 @@ def newton(f,Df,x0,epsilon,max_iter):
     print('Exceeded maximum iterations. No solution found.')
     return None
 
-def subtract_sparse(T,M):
-    [inds,data] = T.read_local_nnz()
-    [inds,data2] = M.read_local_nnz()
-
-    new_data = data-data2
-    new_tensor = ctf.tensor(T.shape, sp=T.sp)
-    new_tensor.write(inds,new_data)
-    return new_tensor
-
-def elementwise_prod(T,M):
-    [inds,data] = T.read_local_nnz()
-    [inds,data2] = M.read_local_nnz()
-
-    new_data= data2*data
-    new_tensor = ctf.tensor(T.shape, sp=T.sp)
-    new_tensor.write(inds,new_data)
-    return new_tensor
-
-def elementwise_exp(T):
-    [inds,data] = T.read_local_nnz()
-    new_data = np.exp(data)
-
-    new_tensor = ctf.tensor(T.shape, sp=T.sp)
-    new_tensor.write(inds,new_data)
-    return new_tensor
-
-def elementwise_log(T):
-    [inds,data] = T.read_local_nnz()
-    new_data = np.log(data)
-
-    new_tensor = ctf.tensor(T.shape, sp=T.sp)
-    new_tensor.write(inds,new_data)
-    return new_tensor
-
 class MLogQ2():
     #Current implementation is using \lambda  = e^m and replacing it in the function to get: e^m - xm
     def __init__(self,tenpy, T, Omega, A, convergence_tolerance, num_newton_iterations):
@@ -170,7 +136,6 @@ class MLogQ2():
                 while (t<self.max_newton_iterations):
                     t += 1
                     [g,m] = self.Get_RHS(i,regu,mu)
-                    grad_nrm = self.tenpy.vecnorm(g)
 
                     if self.tenpy.name() == "numpy": 
                         delta = self.tenpy.Solve_Factor(m,lst_mat,g,i,0,regu,mu)
@@ -280,7 +245,6 @@ class MLogQAbs():
             while (t<self.max_newton_iterations):
                 t += 1
                 [g,m] = self.Get_RHS(i,regu,mu)
-                grad_nrm = self.tenpy.vecnorm(g)
 
                 if self.tenpy.name() == "numpy": 
                     delta = self.tenpy.Solve_Factor(m,lst_mat,g,i,regu)

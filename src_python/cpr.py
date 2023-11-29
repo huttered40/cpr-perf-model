@@ -2,7 +2,6 @@ def main(args):
 
     import time,os,sys
     import numpy as np
-    #import random as rand
     import pandas as pd
 
     from cpr_model import cpr_model

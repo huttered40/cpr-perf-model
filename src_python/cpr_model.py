@@ -174,11 +174,9 @@ class cpr_model():
             for j in range(len(self.parameter_nodes[i])):
                 self.Projected_Omegas[i].append(0)
 
-        nodes = []
         density = 0.
         training_node_list = []
         training_data_list = []
-        save_training_nodes = []
         node_data_dict = {}
         node_count_dict = {}
         for i in range(len(data)):
@@ -186,7 +184,6 @@ class cpr_model():
             node_key = []
             for j in range(len(input_tuple)):
                 node_key.append(get_node_index(input_tuple[j],self.parameter_nodes[j],self.interval_spacing[j]))
-            save_training_nodes.append(node_key)
             if (tuple(node_key) not in node_data_dict):
                 node_count_dict[tuple(node_key)] = 1
                 node_data_dict[tuple(node_key)] = data[i]

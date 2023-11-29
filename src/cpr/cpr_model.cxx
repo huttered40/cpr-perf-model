@@ -1769,12 +1769,12 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
         for (int j=_parameters->num_partitions_per_dimension[i]-local_projected_set_size; j<_parameters->num_partitions_per_dimension[i]; j++){
           assert(j<this->Projected_Omegas[i].size());
           if (this->Projected_Omegas[i][j] >= min(projection_set_size_threshold_[i],max_elem)){
-//            std::cout << get_midpoint_of_two_nodes(j,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << ",";
+            std::cout << get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+(_hyperparameters->partition_spacing[i]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << ",";
             for (int k=0; k<_parameters->cp_rank; k++){
               reduced_matrix[column_count+local_projected_set_size*k] = _parameters->factor_matrix_elements[fme_offset+j*_parameters->cp_rank + k];
-//              std::cout << reduced_matrix[column_count+local_projected_set_size*k] << ",";
+              std::cout << reduced_matrix[column_count+local_projected_set_size*k] << ",";
             }
-//            std::cout << "\n";
+            std::cout << "\n";
             column_count++;
           }
         }
@@ -1802,9 +1802,12 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
        assert(singular_value[0]>0);
 
 // Uncomment to get print out of Left Singular Vector of FM
-//      std::cout << "Left SV\n";
-//      for (int j=0; j<local_projected_set_size; j++) std::cout << get_midpoint_of_two_nodes(j,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << "," << left_singular_matrix[j] << "\n";
-//      std::cout << "End of Left SV\n";
+      std::cout << "Left SV\n";
+      int kk=0;
+      for (int j=_parameters->num_partitions_per_dimension[i]-local_projected_set_size; j<_parameters->num_partitions_per_dimension[i]; j++){
+        std::cout << get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+(_hyperparameters->partition_spacing[i]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << "," << left_singular_matrix[kk++] << "\n";
+      }
+      std::cout << "End of Left SV\n";
 
 /*
       // Identify Perron vector: simply flip signs if necessary (of the first column only!)
@@ -1864,6 +1867,8 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
        assert(info==0);
        int jump = 1+_parameters->spline_degree+1+_parameters->cp_rank;
        // Write model coefficients that fit the single left-singular vector
+       for (int jjjj=0; jjjj<1+_parameters->spline_degree; jjjj++) std::cout << left_singular_matrix[jjjj] << " ";
+       std::cout << "\n";
        std::memcpy(&temporary_extrap_models[num_numerical_fm_rows*jump],&left_singular_matrix[0],sizeof(double)*(1+_parameters->spline_degree));
        // Write single singular value
        std::memcpy(&temporary_extrap_models[num_numerical_fm_rows*jump+(1+_parameters->spline_degree)],&singular_value[0],sizeof(double));
