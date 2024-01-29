@@ -55,7 +55,7 @@ def main(args):
         model_predictions.append(inverse_transform_response(args.response_transform_type,model.predict([configuration])[0]))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform_type,training_data),model_predictions,0)
     timers.append(time.time()-start_time)
-    write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,test_set_size],model_size,[args.gp_kernel_id],["model:kernel_id"])    
+    write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,test_set_size],model_size,[args.kernel_id],["model:kernel_id"])    
 
 if __name__ == "__main__":
 

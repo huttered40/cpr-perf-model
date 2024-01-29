@@ -32,7 +32,7 @@ def main(args):
     model_predictions = []
     for k in range(test_set_size):
         configuration = transform_predictor(args.predictor_transform_type,test_configurations[k,:]*1.)
-        model_predictions.append(inverse_transform_response(args.response_transform_type,nn_model.predict([configuration])[0]))
+        model_predictions.append(inverse_transform_response(args.response_transform_type,model.predict([configuration])[0]))
     test_error_metrics = get_error_metrics(test_set_size,test_configurations,test_data,model_predictions,args.print_test_error)
     timers.append(time.time()-start_time)
 
@@ -40,7 +40,7 @@ def main(args):
     model_predictions = []
     for k in range(training_set_size):
         configuration = training_configurations[k,:]*1.
-        model_predictions.append(inverse_transform_response(args.response_transform_type,nn_model.predict([configuration])[0]))
+        model_predictions.append(inverse_transform_response(args.response_transform_type,model.predict([configuration])[0]))
     training_error_metrics = get_error_metrics(training_set_size,training_configurations,inverse_transform_response(args.response_transform_type,training_data),model_predictions,0)
     timers.append(time.time()-start_time)
     write_statistics_to_file(args.output_file,test_error_metrics,training_error_metrics,timers,[training_set_size,test_set_size],model_size,[args.hidden_layer_sizes],["model:hidden_layer_sizes"])    

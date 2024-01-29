@@ -23,6 +23,7 @@ if __name__ == "__main__":
     arg_defs.add_general_arguments(parser)
     args, _ = parser.parse_known_args()
 
+    machine_name = "knl" # {"knl", "skx", "icx"}
     kernel_name = "amg"
     write_file_location = "./"
     ndim=3
@@ -31,10 +32,31 @@ if __name__ == "__main__":
     nx = 64
     ny = 64
     nz = 64
-    ppn_count=[64]
-    thread_count = [1]
+    if (machine_name == "knl"):
+        ppn_count=[64]
+        thread_count = [1]
+        core_count = 64
+        queue_name = "normal"
+        px=4
+        py=4
+        pz=4
+    elif (machine_name == "skx"):
+        ppn_count=[48]
+        thread_count = [1]
+        core_count = 48
+        queue_name = "skx-normal"
+        px=4
+        py=4
+        pz=3
+    elif (machine_name == "icx"):
+        ppn_count=[80]
+        thread_count = [1]
+        core_count = 80
+        queue_name = "icx-normal"
+        px=4
+        py=4
+        pz=5
     nnodes=[1]
-    core_count =64
     coarsening_type_list = [0,3,6,8,10,21,22]
     relax_type_list = [0,3,4,6,8,13,14,16,17,18]
     interp_type_list = [0,2,3,4,5,6,8,9,12,13,14,16,17,18]
@@ -48,13 +70,13 @@ if __name__ == "__main__":
     for i in range(len(nnodes)):
 	for j in range(len(ppn_count)):
 	    for k in range(len(thread_count)):
-                if (ppn_count[j]*thread_count[k]>128 or ppn_count[j]*thread_count[k]<64):
+                if (ppn_count[j]*thread_count[k]>2*core_count or ppn_count[j]*thread_count[k]<core_count):
                     continue
-		kernel_tag = "%s_kt%d_ppn%d_thread%d_node%d"%(kernel_name,args.kernel_type,ppn_count[j],thread_count[k],nnodes[i])
+		kernel_tag = "%s_kt%d_%s_ppn%d_thread%d_node%d"%(kernel_name,args.kernel_type,machine_name,ppn_count[j],thread_count[k],nnodes[i])
 		file_str = '%s.sh'%(kernel_tag)
 		file_str = write_file_location + file_str
 		write_files.append(open(file_str,"w"))
-		write_files[-1].write("#!/bin/bash\n#SBATCH -J %s\n#SBATCH -o %s.o\n#SBATCH -e %s.e\n#SBATCH -p normal\n#SBATCH -N %d\n#SBATCH -n %d\n#SBATCH -t 04:00:00\nexport OMP_NUM_THREADS=%d\nexport AMG_NODE_COUNT=%d\nexport AMG_PPN_COUNT=%d\nexport AMG_KERNEL_TYPE=%d\n\n"%(kernel_tag,kernel_tag,kernel_tag,nnodes[i],ppn_count[j]*nnodes[i],thread_count[k],nnodes[i],ppn_count[j],args.kernel_type))
+		write_files[-1].write("#!/bin/bash\n#SBATCH -J %s\n#SBATCH -o %s.o\n#SBATCH -e %s.e\n#SBATCH -p %s\n#SBATCH -N %d\n#SBATCH -n %d\n#SBATCH -t 04:00:00\nexport OMP_NUM_THREADS=%d\nexport AMG_NODE_COUNT=%d\nexport AMG_PPN_COUNT=%d\nexport AMG_KERNEL_TYPE=%d\n\n"%(kernel_tag,kernel_tag,kernel_tag,queue_name,nnodes[i],ppn_count[j]*nnodes[i],thread_count[k],nnodes[i],ppn_count[j],args.kernel_type))
 		file_dict[(nnodes[i],ppn_count[j],thread_count[k])] = valid_file_count
 		valid_file_count += 1
 
@@ -68,16 +90,13 @@ if __name__ == "__main__":
 	        thread = thread_count[thread_idx]
 	        node_idx = np.random.randint(0,len(nnodes))
 	        node = nnodes[node_idx]
-                if (ppn*thread > 128 or ppn*thread < 64):
+                if (ppn*thread > 2*core_count or ppn*thread < core_count):
                     continue
 
                 _input_mode1 = nx
                 _input_mode2 = ny
                 _input_mode3 = nz
                 process_count = node*ppn
-                px=4
-                py=4
-                pz=4
 		"""
 		while (process_count>1):
 		    if (process_count == 3):

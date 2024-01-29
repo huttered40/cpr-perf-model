@@ -2,18 +2,28 @@ import numpy as np
 
 def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,\
     #import random as rand
-      test_set_size,user_specified_mode_range_min,user_specified_mode_range_max,print_diagnostics=0):
+      test_set_size,user_specified_mode_range_min,user_specified_mode_range_max,train_range_start_idx=-1, train_range_end_idx=-1,test_range_start_idx=-1, test_range_end_idx=-1,print_diagnostics=0):
     # NOTE: assumption that training/test files follow same format
     # Randomize test set
     np.random.seed(10)
     x_test = np.array(range(len(test_df[param_list].values)))
-    np.random.shuffle(x_test)
+    if (test_range_start_idx==-1):
+        np.random.shuffle(x_test)
+    else:
+        assert(test_range_end_idx > test_range_start_idx)
+        x_test = range(test_range_start_idx,min(test_range_end_idx,len(x_test)))
+    print(x_test)
     test_configurations = test_df[param_list].values[x_test]
     test_data = test_df[data_list].values.reshape(-1)[x_test]
 
     # Randomize training set
     x_train = np.array(range(len(training_df[param_list].values)))
-    np.random.shuffle(x_train)
+    if (train_range_start_idx==-1):
+        np.random.shuffle(x_train)
+    else:
+        assert(train_range_end_idx > train_range_start_idx)
+        x_train = range(train_range_start_idx,min(train_range_end_idx,len(x_train)))
+    print(x_train)
     training_configurations = training_df[param_list].values[x_train]
     training_data = training_df[data_list].values.reshape(-1)[x_train]
 
@@ -21,6 +31,8 @@ def extract_datasets(training_df,test_df,param_list,data_list,training_set_size,
     test_set_size = min(test_set_size,test_configurations.shape[0]) if test_set_size > 0 else test_configurations.shape[0]
     test_configurations = test_configurations[:test_set_size,:]
     test_data = test_data[:test_set_size]
+
+    print(test_data)
 
     # Split training data
     if (training_set_size <= 0):
@@ -202,9 +214,8 @@ def write_statistics_to_file(output_file,test_error_summary_statistics,training_
         columns[17] : timers[1],\
         columns[18] : timers[2],\
         columns[19] : inputs[0],\
-        columns[20] : 0,\
-        columns[21] : inputs[1],\
-        columns[22] : model_size,\
+        columns[20] : inputs[1],\
+        columns[21] : model_size,\
     }}
     #NOTE: The zero in columns[20] was formally validation set size, which was removed.
     for i in range(len(model_info)):

@@ -25,8 +25,8 @@ def main(args):
     model = pe.Earth(max_degree=args.max_spline_degree,allow_linear=False)#,smooth=True))
     model.fit(training_configurations,training_data)
     timers.append(time.time()-start_time)
-    if (args.print_model_parameters == 1):
-        print(model.summary())
+    #if (args.print_model_parameters == 1):
+    print(model.summary())
 
     model_size = get_model_size(model,"Model.joblib")
 

@@ -1,6 +1,6 @@
 // Train data on a single process.
-// Kernel/Application: bcast
-// Configuration parameters: 3 numerical (input) parameters (matrix dimensions message size, node count, process-per-node code in MPI interface)
+// Kernel/Application: amg
+// Configuration parameters: 6 numerical and categorical (input) parameters
 // Read training data from file provided at command line
 // Set model hyperparameters via setting environment variables
 
@@ -18,17 +18,16 @@ void get_dataset(const char* dataset_file_path, int order, std::vector<double>& 
   std::string temp_num;
   // Read in column header
   getline(my_file,temp_num,'\n');
-
-  // Input from columns {1,2,3}
-  // Data from columns {4}
+  // Input from columns {1,2,3,4,5,6}
+  // Data from columns {14}
   while (getline(my_file,temp_num,',')){
-    for (int i=0; i<order; i++){
+    for (int i=0; i<11; i++){
       getline(my_file,temp_num,',');
-      configurations.push_back(atof(temp_num.c_str()));
+      if (i<6) configurations.push_back(atof(temp_num.c_str()));
     }
-    getline(my_file,temp_num,',');
+    for (int i=0; i<2; i++) getline(my_file,temp_num,',');
+    getline(my_file,temp_num,'\n');// Runtime we model is the last column entry
     runtimes.push_back(atof(temp_num.c_str()));
-    getline(my_file,temp_num,'\n');// read in standard deviation
   }
 }
 
@@ -39,8 +38,11 @@ int main(int argc, char** argv){
 
   MPI_Init(&argc,&argv);
 
-  constexpr int nparam = 3;
+  constexpr int nparam = 6;
   std::vector<performance_model::parameter_type> param_types(nparam,performance_model::parameter_type::NUMERICAL);
+  param_types[3]=performance_model::parameter_type::CATEGORICAL;
+  param_types[4]=performance_model::parameter_type::CATEGORICAL;
+  param_types[5]=performance_model::parameter_type::CATEGORICAL;
   char* dataset_file_path = argv[1];
   bool verbose = is_verbose();
 
@@ -58,7 +60,7 @@ int main(int argc, char** argv){
   set_cpr_param_pack(nparam,interpolator_pack,get_cpr_model_hyperparameter_options(),verbose);
   performance_model::cprg_hyperparameter_pack extrapolator_pack(nparam);
   set_cprg_param_pack(nparam,extrapolator_pack,verbose);
-  for (int i=1; i<3; i++){
+  for (int i=3; i<nparam; i++){
     interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
     extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
   }
@@ -98,7 +100,7 @@ int main(int argc, char** argv){
 
   if (argc>5){
     interpolator->write_to_file(argv[5]);
-    interpolator->read_from_file(argv[5]);
+    interpolator->read_from_file(argv[45]);
   }
   if (argc>6){
     extrapolator->write_to_file(argv[6]);

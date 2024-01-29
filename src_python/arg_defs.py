@@ -89,3 +89,23 @@ def add_shared_parameters(parser):
         '--print-model-parameters',
         action='store_true',
         help='Print factor matrix elements.')
+    parser.add_argument(
+        '--train-range-start-idx',
+        type=int,
+        default=-1,
+        help='Start index for consideration in dataset.')
+    parser.add_argument(
+        '--train-range-end-idx',
+        type=int,
+        default=-1,
+        help='End index for consideration in dataset.')
+    parser.add_argument(
+        '--test-range-start-idx',
+        type=int,
+        default=-1,
+        help='Start index for consideration in dataset.')
+    parser.add_argument(
+        '--test-range-end-idx',
+        type=int,
+        default=-1,
+        help='End index for consideration in dataset.')

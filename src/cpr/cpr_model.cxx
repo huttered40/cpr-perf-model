@@ -96,24 +96,43 @@ double multilinear_product_packed(const double* multi_vector, int nelements, int
 void init_factor_matrix(CTF::Tensor<>* fm, loss_function t_loss){
   if (fm==nullptr) return;
   //assert(fm != nullptr);
-  int64_t num_nnz_elems;
-  int64_t* ptr_to_indices;
-  double* ptr_to_data;
   int cp_rank = fm->lens[0];
   int mode_length = fm->lens[1];
-  if (t_loss == loss_function::MSE) fm->fill_random(-1,1);
-  else if (t_loss == loss_function::MLOGQ2) fm->fill_random(0,.01);
-  else assert(0);
-  // Enforce to be strictly increasing
-  fm->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
-  for (int k=0; k<cp_rank; k++){
-    for (int j=1; j<mode_length; j++){
-      ptr_to_data[j*cp_rank+k] += ptr_to_data[(j-1)*cp_rank+k];
+  if (t_loss == loss_function::MSE){
+    fm->fill_random(0,1);
+    // Enforce to be strictly increasing
+    int64_t num_nnz_elems;
+    int64_t* ptr_to_indices;
+    double* ptr_to_data;
+    fm->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
+    for (int k=0; k<cp_rank; k++){
+      for (int j=1; j<mode_length; j++){
+        ptr_to_data[j*cp_rank+k] += ptr_to_data[(j-1)*cp_rank+k];
+      }
+      for (int j=0; j<mode_length; j++){
+        ptr_to_data[j*cp_rank+k] -= 1;
+      }
     }
+    fm->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
+    delete[] ptr_to_data;
+    delete[] ptr_to_indices;
   }
-  fm->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-  delete[] ptr_to_data;
-  delete[] ptr_to_indices;
+  else if (t_loss == loss_function::MLOGQ2){
+    fm->fill_random(0,1);
+    // Enforce to be strictly increasing
+    int64_t num_nnz_elems;
+    int64_t* ptr_to_indices;
+    double* ptr_to_data;
+    fm->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
+    for (int k=0; k<cp_rank; k++){
+      for (int j=1; j<mode_length; j++){
+        ptr_to_data[j*cp_rank+k] += ptr_to_data[(j-1)*cp_rank+k];
+      }
+    }
+    fm->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
+    delete[] ptr_to_data;
+    delete[] ptr_to_indices;
+  }
 }
 
 void debug_tensor(CTF::Tensor<>* t, const std::string& str){
@@ -165,11 +184,6 @@ struct MLogQ2{
         CTF::TTTP(&M,A.size(),&mode_list[0],&A[0],true);
         CTF::Tensor<> M_reciprocal3 = *T;
 
-        char start_char = 'a';
-        std::string full_idx_str;
-        for (int i = 0; i < A.size(); ++i){
-          full_idx_str += start_char++;
-        }
         sparse_inv(&M);
         CTF::Sparse_mul(&M_reciprocal3,&M);
         sparse_neg(&M);
@@ -190,14 +204,12 @@ struct MLogQ2{
             lst_mat.push_back(new CTF::Tensor<>(2,&fm_mode_lengths[0],&fm_mode_types[0],*dw));
           }
         }
-
         CTF::MTTKRP(&M_reciprocal3,&lst_mat[0],num,true);
         // Notice that grad should be negative, but it is not!
         //         This is taken into account when we subtract the step from the FM in 'step(..)'
         // Notice: no factors of 2. These are divided away automatically, as both the loss, regularization terms, etc. have them.
         CTF::Function<> gradient_update([&reg,&mu](double d1, double d2) -> double { return d1+reg*d2 - mu/2./d2; });
         (*grad)["ij"] = gradient_update((*lst_mat[num])["ij"],(*A[num])["ij"]);
-        delete lst_mat[num];
     }
 
     static int step(CTF::World* dw, CTF::Tensor<>* T, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*>& A, double regu, double barrier_start, double barrier_stop, double barrier_reduction_factor, double factor_matrix_convergence_tolerance, double max_newton_iter){
@@ -234,6 +246,7 @@ struct MLogQ2{
                     MLogQ2::Get_RHS(dw,T,O,A,i,regu,mu,&g,&Hessian);
                     CTF::Solve_Factor(&Hessian,&lst_mat[0],&g,i,true,regu,regu,mu);
                     double step_nrm = lst_mat[i]->norm2() / A[i]->norm2();
+                    //std::cout << i << ": step_nrm - " << step_nrm << std::endl;
                     prev_step_nrm = step_nrm;
                     (*A[i])["ij"] = (*A[i])["ij"] - (*lst_mat[i])["ij"];
                     (*lst_mat[i])["ij"] = (*A[i])["ij"];
@@ -260,132 +273,6 @@ struct MLogQ2{
         return newton_count;
     }
 };
-
-/*
-struct MSE_strictly_increasing{
-    //Current implementation is using \lambda  = e^m and replacing it in the function to get: e^m - xm
-    static void Get_RHS(CTF::World* dw, CTF::Tensor<>* T, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*>& A, int num, double reg, double mu, CTF::Tensor<>* grad, CTF::Tensor<>* Hessian){
-        int64_t num_nnz_elems,num_nnz_elems2;
-        int64_t* ptr_to_indices,*ptr_to_indices2;
-        double* ptr_to_data,*ptr_to_data2;
-        CTF::Tensor<> M(O);
-        std::vector<int> mode_list(A.size());
-        for (int j=0; j<A.size(); j++) mode_list[j]=j;
-        CTF::TTTP(&M,A.size(),&mode_list[0],&A[0],true);
-// I don't think I need this       Hessian = M.copy();
-        auto M_reciprocal1 = M;
-        auto M_reciprocal2 = M;
-
-        M.get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
-        std::vector<double> new_data(num_nnz_elems); for (int i=0; i<num_nnz_elems; i++) new_data[i] = -1./ptr_to_data[i];
-        M_reciprocal1.write(num_nnz_elems,ptr_to_indices,&new_data[0]);
-        std::vector<double> new_data2(num_nnz_elems); for (int i=0; i<num_nnz_elems; i++) new_data2[i] = 1./(ptr_to_data[i]*ptr_to_data[i]);
-        M_reciprocal2.write(num_nnz_elems,ptr_to_indices,&new_data2[0]);
-        // Confirmed that swapping the negatives between new_data and new_data2 fails.
-
-        double* ptr_to_data_t;
-        T->get_local_data(&num_nnz_elems2,&ptr_to_indices2,&ptr_to_data_t,true);
-        assert(num_nnz_elems2 == num_nnz_elems);
-        for (int i=0; i<num_nnz_elems; i++) ptr_to_data[i] = log(ptr_to_data_t[i] / ptr_to_data[i]);
-        M.write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-        CTF::Sparse_mul(&M,&M_reciprocal1);
-        for (int i=0; i<num_nnz_elems; i++) ptr_to_data_t[i] = 1. + ptr_to_data[i];
-        Hessian->write(num_nnz_elems,ptr_to_indices,ptr_to_data_t);
-        CTF::Sparse_mul(Hessian,&M_reciprocal2);
-
-        std::vector<CTF::Tensor<>*> lst_mat;
-        std::vector<int> fm_mode_types(2,NS);
-        std::vector<int> fm_mode_lengths(2,0);
-        for (int j=0; j<A.size(); j++){
-          if (j != num) lst_mat.push_back(A[j]);
-          else{
-            fm_mode_lengths[0] = A[num]->lens[0]; fm_mode_lengths[1] = A[num]->lens[1];
-            lst_mat.push_back(new CTF::Tensor<>(2,&fm_mode_lengths[0],&fm_mode_types[0],*dw));
-          }
-        }
-
-        CTF::MTTKRP(&M,&lst_mat[0],num,true);
-        // Notice that grad should be negative, but it is not!
-        //         This is taken into account when we subtract the step from the FM in 'step(..)'
-        // Notice: no factors of 2. These are divided away automatically, as both the loss, regularization terms, etc. have them.
-        delete[] ptr_to_data;
-        delete[] ptr_to_data_t;
-        delete[] ptr_to_indices;
-        delete[] ptr_to_indices2;
-        lst_mat[num]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
-        A[num]->get_local_data(&num_nnz_elems2,&ptr_to_indices2,&ptr_to_data2,false);
-        assert(num_nnz_elems==num_nnz_elems2);
-        for (int i=0; i<num_nnz_elems; i++){
-          ptr_to_data[i] = ptr_to_data[i] + reg*ptr_to_data2[i] - mu/2./ptr_to_data2[i];
-        }
-        grad->write(num_nnz_elems,ptr_to_indices,ptr_to_data);
-        delete[] ptr_to_data;
-        delete[] ptr_to_data2;
-        delete[] ptr_to_indices;
-        delete[] ptr_to_indices2;
-        delete lst_mat[num];
-    }
-
-    static int step(CTF::World* dw, CTF::Tensor<>* T, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*>& A, double regu, double barrier_start, double barrier_stop, double barrier_reduction_factor, double factor_matrix_convergence_tolerance, double max_newton_iter){
-        int64_t num_nnz_elems,num_nnz_elems2;
-        int64_t* ptr_to_indices,*ptr_to_indices2;
-        double* ptr_to_data,*ptr_to_data2;
-        std::vector<int> fm_mode_types(2,NS);
-        std::vector<int> fm_mode_lengths(2,0);
-        int newton_count = 0;
-        // Sweep over each factor matrix.
-        for (int i=0; i<A.size(); i++){
-            std::vector<CTF::Tensor<>*> lst_mat;
-            // Extract all factor matrices for this optimization (i)
-            for (int j=0; j<A.size(); j++){
-//              lst_mat.push_back(A[j]);
-                if (i != j) lst_mat.push_back(A[j]);
-                else{
-                  fm_mode_lengths[0] = A[i]->lens[0]; fm_mode_lengths[1] = A[i]->lens[1];
-                  lst_mat.push_back(new CTF::Tensor<>(2,&fm_mode_lengths[0],&fm_mode_types[0],*dw));
-                }
-            }
-            // Minimize convex objective -> Newton's method
-            // Reset barrier coefficient to starting value
-            double mu = barrier_start;
-            // Optimize factor matrix i by solving each row's nonlinear loss via multiple steps of Newtons method.
-            while (mu >= barrier_stop){
-                int t=0;
-                double prev_step_nrm = 10000000.;
-                while (t<max_newton_iter){
-                    t += 1;
-                    fm_mode_lengths[0]=A[i]->lens[0]; fm_mode_lengths[1]=A[i]->lens[1];
-                    CTF::Tensor<> g(2,&fm_mode_lengths[0],&fm_mode_types[0],*dw);
-                    CTF::Tensor<> Hessian(O);
-                    MLogQ2::Get_RHS(dw,T,O,A,i,regu,mu,&g,&Hessian);
-                    CTF::Solve_Factor(&Hessian,&lst_mat[0],&g,i,true,regu,regu,mu);
-                    double step_nrm = lst_mat[i]->norm2() / A[i]->norm2();
-//                    std::cout << mu << " " << t << " " << step_nrm << "\n";
-                    prev_step_nrm = step_nrm;
-                    // Verify that following update of factor matrix, every element is positive.
-                    lst_mat[i]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
-                    A[i]->get_local_data(&num_nnz_elems2,&ptr_to_indices2,&ptr_to_data2,false);
-                    assert(num_nnz_elems == num_nnz_elems2);
-                    for (int j=0; j<num_nnz_elems; j++) { ptr_to_data2[j] = ptr_to_data2[j] - ptr_to_data[j]; if (ptr_to_data2[j] <= 0) ptr_to_data2[j]=1e-6;}
-                    A[i]->write(num_nnz_elems2,ptr_to_indices2,ptr_to_data2);
-                    lst_mat[i]->write(num_nnz_elems2,ptr_to_indices2,ptr_to_data2);
-                    if (step_nrm <= factor_matrix_convergence_tolerance) break;
-                    delete[] ptr_to_data;
-                    delete[] ptr_to_data2;
-                    delete[] ptr_to_indices;
-                    delete[] ptr_to_indices2;
-                }
-                mu /= barrier_reduction_factor;
-                //print("Newton iteration %d: step_nrm - "%(t), step_nrm)
-                //A[i] -= delta 
-                newton_count += t;
-            }
-            delete lst_mat[i];
-        }
-        return newton_count;
-    }
-};
-*/
 
 struct MSE{
     static void Get_RHS(CTF::World* dw, CTF::Tensor<>* T, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*>& A, int num, double reg, CTF::Tensor<>* grad){
@@ -450,6 +337,7 @@ double cpd_als(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
     int64_t nnz = O->nnz_loc;
     double err=100000000.;
     int n_newton_iterations=0;
+    std::cout << "nnz - " << nnz << std::endl;
     for (int i=0; i<max_nsweeps; i++){
       if (i>0){
         // Update model parameters X, one step at a time
@@ -466,62 +354,15 @@ double cpd_als(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
         CTF::TTTP(&M,X.size(),&mode_list[0],&X[0],true);
         // M has same sparsity pattern as X, which has same sparsity pattern as T_in
         // Now, add M with T_in
+
         CTF::Sparse_add(&M,T_in,1,-1);
         err = M.norm2()/sqrt(nnz);
         err *= err;
-/*
-        double reg_loss = 0;
-        for (int j=0; j<X.size(); j++){
-            [inds,data] = X[j]->read_local_nnz();
-            reg_loss += la.norm(data,2)**2;
-        }
-        reg_loss *= reg;
-*/
+        std::cout << "Loss: " << err << std::endl;
         if (err < model_convergence_tolerance) break;
     }
     return err;
 }
-
-/*
-double cpd_als_strictly_increasing(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, double factor_matrix_convergence_tolerance, int max_newton_iter, double barrier_start=1e1, double barrier_stop=1e-11, double barrier_reduction_factor=8, loss_function t_loss= loss_function::MSE_Strictly_Increasing){
-    assert(t_loss == loss_function::MSE_Strictly_Increasing);
-    int64_t nnz,num_nnz_elems;
-    int64_t* ptr_to_indices;
-    double* ptr_to_data;
-    O->get_local_data(&nnz,&ptr_to_indices,&ptr_to_data,true);
-    delete[] ptr_to_data;
-    delete[] ptr_to_indices;
-    reg *= nnz;
-    barrier_start *= nnz;
-    barrier_stop *= nnz;
-    double err=100000000.;
-    double err_prev = 100000000.;
-    int n_newton_iterations=0;
-    for (int i=0; i<max_nsweeps; i++){
-        CTF::Tensor<> M(O);
-        std::vector<int> mode_list(X.size());
-        for (int j=0; j<X.size(); j++) mode_list[j]=j;
-        CTF::TTTP(&M,X.size(),&mode_list[0],&X[0],true);
-        // M has same sparsity pattern as X, which has same sparsity pattern as T_in
-        // Now, add M with T_in
-        CTF::Sparse_add(&M,T_in,1,-1);
-        err = M.norm2()/sqrt(nnz);
-        err *= err;
-
-
-        //std::cout << "MLogQ2 err - " << err << " " << nnz << std::endl;
-        //print("(Loss,Regularization component of objective,Objective) at AMN sweep %d: %f,%f,%f)"%(i,err,reg_loss,err+reg_loss))
-        //std::cout << i << " " << err << " " << reg_loss << " " << err+reg_loss << std::endl;
-        if (i>0 && std::abs(err)<model_convergence_tolerance) break;
-        err_prev = err;
-        int _n_newton_iterations = MSE_strictly_increasing::step(dw,T_in,O,X,reg,barrier_start,barrier_stop,barrier_reduction_factor,factor_matrix_convergence_tolerance, max_newton_iter);
-        normalize(X);
-        n_newton_iterations += _n_newton_iterations;
-    }
-    //print("Break with %d AMN sweeps, %d total Newton iterations"%(i,n_newton_iterations))
-    return err;//,i,n_newton_iterations)
-}
-*/
 
 double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vector<CTF::Tensor<>*> X, double reg, double model_convergence_tolerance, int max_nsweeps, double factor_matrix_convergence_tolerance, int max_newton_iter, double barrier_start=1e1, double barrier_stop=1e-11, double barrier_reduction_factor=8, loss_function t_loss=loss_function::MLOGQ2){
     assert(t_loss == loss_function::MLOGQ2);
@@ -531,6 +372,20 @@ double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
     barrier_stop *= nnz;
     double err=100000000.;
     double err_prev = 100000000.;
+
+
+    int64_t num_nnz_elems;
+    int64_t* ptr_to_indices;
+    double* ptr_to_data;
+    T_in->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,true);
+    for (int k=0; k<num_nnz_elems; k++){
+      //std::cout << ptr_to_data[k] << " ";
+      assert(ptr_to_data[k]>0);
+    }
+    std::cout << "\n";
+    delete[] ptr_to_data;
+    delete[] ptr_to_indices;
+
 /*
     X_prev = []
     for (int i=0; i<X.size(); i++){
@@ -547,6 +402,19 @@ double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
         normalize(X);
         n_newton_iterations += _n_newton_iterations;
       }
+/*
+  for (int j=0; j<X.size(); j++){
+    int64_t num_nnz_elems;
+    int64_t* ptr_to_indices;
+    double* ptr_to_data;
+    X[j]->get_local_data(&num_nnz_elems,&ptr_to_indices,&ptr_to_data,false);
+    std::cout << "Iteration " << i << ", FM " << j << ": ";
+    for (int k=0; k<num_nnz_elems; k++) std::cout << ptr_to_data[k] << " ";
+    std::cout << "\n";
+    delete[] ptr_to_data;
+    delete[] ptr_to_indices;
+    }
+*/
         CTF::Tensor<> M(O);
         std::vector<int> mode_list(X.size());
         for (int j=0; j<X.size(); j++) mode_list[j]=j;
@@ -556,30 +424,9 @@ double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
 
         CTF::Sparse_add(&P,&TT,-1.,1.);
         err = P.norm2(); err*=err; err/=nnz;
-/*
-        reg_loss = 0;
-        for (int j=0 j<X.size(); j++){
-            [inds,data] = X[j].read_local_nnz();
-            reg_loss += la.norm(data,2)**2;
-        }
-        reg_loss *= (reg/nnz);
-*/
-/*
-        if (std::abs(err) > 10*std::abs(err_prev)){
-            err = err_prev;
-            for (int j=0; j<X.size(); j++){
-                X[j] = X_prev[j].copy();
-            }
-            break;
-        }
-*/
+        std::cout << "Loss: " << err << std::endl;
         if (err < model_convergence_tolerance) break;
         err_prev = err;
-/*
-        for (int j=0; j<X.size(); j++){
-            X_prev[j] = X[j].copy();
-        }
-*/
     }
     return err;
 }
@@ -671,7 +518,6 @@ int get_interval_index(double val, int num_nodes, const double* _nodes, paramete
 
 int get_node_index(double val, int num_nodes, const double* _nodes, parameter_range_partition node_spacing_type){
   //NOTE: This function is different than the function in python version!
-  if (node_spacing_type==parameter_range_partition::SINGLE) assert(0);
   if (val >= _nodes[num_nodes-1]) return num_nodes-1;
   if (val <= _nodes[0]) return 0;
   // Binary Search
@@ -846,7 +692,7 @@ void cpr_model::init(
         assert(_parameters->num_partitions_per_dimension[i]>0);
     }
     _parameters->num_knots = _parameters->knot_positions.size();
-/*
+
     // Debug Info
     std::cout << "Min/Max mode range: " << std::endl;
     for (int i=0; i<this->order; i++){
@@ -864,10 +710,9 @@ void cpr_model::init(
       }
       std::cout << std::endl;
     }
-    std::cout << this->cp_rank[0] << " " << this->cp_rank[1] << " " << _hyperparameters->runtime_transform << std::endl;
     for (int i=0; i<this->order; i++) std::cout << _parameters->num_partitions_per_dimension[i] << " ";
     std::cout << std::endl;
-*/
+
     this->Projected_Omegas.clear();
     this->Projected_Omegas.resize(this->order);
 
@@ -883,7 +728,6 @@ cpr_model::cpr_model(int nparam, const parameter_type* parameter_types, const hy
   assert(this->order>0);
   // Inspect partition_spacing to make sure none are parameter_range_partition::AUTOMATIC, because we have not implemented that yet.
   for (int i=0; i<_hyperparameters->nparam; i++) assert(_hyperparameters->partition_spacing[i] != parameter_range_partition::CUSTOM);
-  for (int i=0; i<this->order; i++) { if (this->param_types[i]!=parameter_type::NUMERICAL) { assert(0); } }// NOT TESTED YET
   for (int i=0; i<this->nparam; i++){
     if (this->param_types[i]==parameter_type::NUMERICAL) this->numerical_modes.push_back(i);
   }
@@ -923,7 +767,8 @@ double cpr_model::predict(const double* configuration) const{
           // Get the closest node (note that node!=midpoint). Two nodes define the bounding box of a grid-cell. Each grid-cell has a mid-point.
           if (this->param_types[j]==parameter_type::CATEGORICAL){
             // Extrapolation is not possible here
-            node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
+            //node[j] = get_interval_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
+            node[j] = get_node_index(configuration[j],_parameters->num_partitions_per_dimension[j],&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]);
             continue;
           }
           if (_parameters->num_partitions_per_dimension[j]==1){
@@ -1233,6 +1078,13 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
         _fit_info->tensor_density = density;
         _fit_info->num_tensor_elements = ntensor_elements;
       }
+      for (int i=0; i<this->order; i++){
+        for (int j=0; j<this->Projected_Omegas[i].size(); j++){
+          std::cout << this->Projected_Omegas[i][j] << " ";
+        }
+        std::cout << "\n";
+      }
+
 
       std::vector<double> ones(training_nodes.size(),1.);
       std::vector<int> tensor_mode_types(this->order,NS);
@@ -1260,12 +1112,16 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
          CTF::Sparse_log(&_T_); 
        }
 
+       int num_re_inits = 0;
       if (_hyperparameters->loss == loss_function::MSE){
-        for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->loss);
-        double loss_value = cpd_als(&dw,&_T_,&omega,FM1,_hyperparameters->regularization,_hyperparameters->optimization_convergence_tolerance,_hyperparameters->max_num_optimization_sweeps);
-        if (compute_fit_error) _fit_info->loss = loss_value;
+        while (num_re_inits < _hyperparameters->max_num_re_inits){
+         for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->loss);
+         double loss_value = cpd_als(&dw,&_T_,&omega,FM1,_hyperparameters->regularization,_hyperparameters->optimization_convergence_tolerance,_hyperparameters->max_num_optimization_sweeps);
+         if (compute_fit_error) _fit_info->loss = loss_value;
+         if (loss_value <= _hyperparameters->optimization_convergence_tolerance_for_re_init) break;
+         num_re_inits++;
+        }
       } else if (_hyperparameters->loss == loss_function::MLOGQ2){
-         int num_re_inits = 0;
          while (num_re_inits < _hyperparameters->max_num_re_inits){
            for (int i=0; i<this->order; i++) init_factor_matrix(FM1[i],_hyperparameters->loss);
            double loss_value = cpd_amn(&dw,&Tsparse,&omega,FM1,_hyperparameters->regularization,\
@@ -1352,7 +1208,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
             }
             assert(element_key[j] >= 0 && element_key[j] < _parameters->num_partitions_per_dimension[j]);
             if (this->param_types[j]==parameter_type::CATEGORICAL){
-              element_key_configuration.push_back(_parameters->knot_positions[element_key[j]]);
+              element_key_configuration.push_back(_parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]]);
             } else{
               //if (_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE) assert(!(element_key[j]+1==_parameters->num_partitions_per_dimension[j]+1));
               element_key_configuration.push_back(_hyperparameters->partition_spacing[j]==parameter_range_partition::SINGLE ? _parameters->knot_positions[_parameters->knot_index_offsets[j]+element_key[j]] : get_midpoint_of_two_nodes(element_key[j],_parameters->num_partitions_per_dimension[j]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[j]],_hyperparameters->partition_spacing[j]));
@@ -1367,13 +1223,15 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
           double low_rank_err1 = std::abs(log(tensor_elem_prediction/tensor_elem_sample_mean));
           double tensor_elem_prediction2 = this->cpr_model::predict(&element_key_configuration[0]);
           double low_rank_err2 = std::abs(log(tensor_elem_prediction2/tensor_elem_sample_mean));
-
-//          if ((tensor_elem_prediction2-tensor_elem_prediction)>1e-6){
-//            for (int j=0; j<_parameters->knot_positions.size(); j++) std::cout << _parameters->knot_positions[j] << " ";
-//            std::cout << "\n" << _parameters->knot_index_offsets[0] << " " << _parameters->knot_index_offsets[1] << " " << _parameters->knot_index_offsets[2] << "\n";
-//            std::cout << configurations[i*this->order] << " " << configurations[i*this->order+1] << " " << configurations[i*this->order+2] << " " << element_key[0] << " " << element_key[1] << " " << element_key[2] << " " << element_key_configuration[0] << " " << element_key_configuration[1] << " " << element_key_configuration[2] << " " << tensor_elem_prediction << " " << tensor_elem_prediction2 << std::endl;
-//         }
-          assert((tensor_elem_prediction2-tensor_elem_prediction)<=1e-6); 
+/*
+          std::cout << tensor_elem_prediction2 << " " << tensor_elem_prediction << std::endl;
+          if (std::abs(tensor_elem_prediction2-tensor_elem_prediction)>1e-6){
+            for (int j=0; j<_parameters->knot_positions.size(); j++) std::cout << _parameters->knot_positions[j] << " ";
+            std::cout << "\n" << _parameters->knot_index_offsets[0] << " " << _parameters->knot_index_offsets[1] << " " << _parameters->knot_index_offsets[2] << "\n";
+            std::cout << configurations[i*this->order] << " " << configurations[i*this->order+1] << " " << configurations[i*this->order+2] << " " << configurations[i*this->order+3] << " " << configurations[i*this->order+4] << " " << configurations[i*this->order+5] << " " << configurations[i*this->order+6] << " " << configurations[i*this->order+7] << " " << element_key[0] << " " << element_key[1] << " " << element_key[2] << " " << element_key[3] << " " << element_key[4] << " " << element_key[5] << " " << element_key[6] << " " << element_key[7] << " " << element_key_configuration[0] << " " << element_key_configuration[1] << " " << element_key_configuration[2] << " " << element_key_configuration[3] << " " << element_key_configuration[4] << " " << element_key_configuration[5] << " " << element_key_configuration[6] << " " << element_key_configuration[7] << " " << tensor_elem_prediction << " " << tensor_elem_prediction2 << std::endl;
+         }
+*/
+//          assert(std::abs(tensor_elem_prediction2-tensor_elem_prediction)<=1e-6); 
           if (do_i_want_to_print_out && quad_err <= .1 && low_rank_err1 <= .1 && rel_err >= .5){
             // get nearby predictions too (just for CTF)
             std::vector<int> element_key_left = {element_key[0],std::max(0,element_key[1]-1)};
@@ -1744,7 +1602,6 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
               assert(!(j+1 == _parameters->num_partitions_per_dimension[i]+1));
               valid_tensor_cell_points[i].push_back(get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]));
             }
-            assert(valid_tensor_cell_points[i][local_projected_set_size-1]>0);
           }
         }
 
@@ -1769,12 +1626,12 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
         for (int j=_parameters->num_partitions_per_dimension[i]-local_projected_set_size; j<_parameters->num_partitions_per_dimension[i]; j++){
           assert(j<this->Projected_Omegas[i].size());
           if (this->Projected_Omegas[i][j] >= min(projection_set_size_threshold_[i],max_elem)){
-            std::cout << get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+(_hyperparameters->partition_spacing[i]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << ",";
+            //std::cout << get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+(_hyperparameters->partition_spacing[i]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << ",";
             for (int k=0; k<_parameters->cp_rank; k++){
               reduced_matrix[column_count+local_projected_set_size*k] = _parameters->factor_matrix_elements[fme_offset+j*_parameters->cp_rank + k];
-              std::cout << reduced_matrix[column_count+local_projected_set_size*k] << ",";
+              //std::cout << reduced_matrix[column_count+local_projected_set_size*k] << ",";
             }
-            std::cout << "\n";
+            //std::cout << "\n";
             column_count++;
           }
         }
@@ -1792,7 +1649,7 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
 
       // Curate the Perron vector: make it positive (which is always possible, see Thereom), but also restrict to constructing model solely out of strictly-increasing elements
       int num_elements_to_keep = local_projected_set_size;// should be <= local_projected_set_size
-      std::cout << "num_elements_to_keep - " << num_elements_to_keep << std::endl;
+      //std::cout << "num_elements_to_keep - " << num_elements_to_keep << std::endl;
       for (int j=0; j<local_projected_set_size; j++){
          if (left_singular_matrix[j]<0) left_singular_matrix[j] *= (-1);
        }
@@ -1802,13 +1659,14 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
        assert(singular_value[0]>0);
 
 // Uncomment to get print out of Left Singular Vector of FM
+/*
       std::cout << "Left SV\n";
       int kk=0;
       for (int j=_parameters->num_partitions_per_dimension[i]-local_projected_set_size; j<_parameters->num_partitions_per_dimension[i]; j++){
         std::cout << get_midpoint_of_two_nodes(j,_parameters->num_partitions_per_dimension[i]+(_hyperparameters->partition_spacing[i]==parameter_range_partition::SINGLE ? 0 : 1),&_parameters->knot_positions[_parameters->knot_index_offsets[i]],_hyperparameters->partition_spacing[i]) << "," << left_singular_matrix[kk++] << "\n";
       }
       std::cout << "End of Left SV\n";
-
+*/
 /*
       // Identify Perron vector: simply flip signs if necessary (of the first column only!)
       int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
@@ -1836,7 +1694,6 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
            //double midpoint_val = get_midpoint_of_two_nodes(k,local_projected_set_size+1,&_parameters->knot_positions[_parameters->knot_index_offsets[i]],this->interval_spacing[i]);
            assert(k<valid_tensor_cell_points[i].size());
            double point_val = valid_tensor_cell_points[i][k];
-           assert(point_val>0);
            int feature_matrix_idx = k-(_parameters->num_partitions_per_dimension[i]-num_elements_to_keep);
            feature_matrix[num_elements_to_keep*j+feature_matrix_idx] = feature_matrix[num_elements_to_keep*(j-1)+feature_matrix_idx] * (_hyperparameters->factor_matrix_underlying_position_transformation == parameter_transformation::LOG ? log(point_val) : point_val);
          }
@@ -1866,9 +1723,13 @@ bool cprg_model::train(int& num_configurations, const double*& configurations, c
        CTF_LAPACK::cdgels('N',num_elements_to_keep,1+_parameters->spline_degree,1,&feature_matrix[0],num_elements_to_keep,&left_singular_matrix[0],num_elements_to_keep,&work_buffer[0],lwork,&info);
        assert(info==0);
        int jump = 1+_parameters->spline_degree+1+_parameters->cp_rank;
+/*
        // Write model coefficients that fit the single left-singular vector
        for (int jjjj=0; jjjj<1+_parameters->spline_degree; jjjj++) std::cout << left_singular_matrix[jjjj] << " ";
+       std::cout << singular_value[0] << " ";
+       for (int jjjj=0; jjjj<_parameters->cp_rank; jjjj++) std::cout << right_singular_matrix[jjjj] << " ";
        std::cout << "\n";
+*/
        std::memcpy(&temporary_extrap_models[num_numerical_fm_rows*jump],&left_singular_matrix[0],sizeof(double)*(1+_parameters->spline_degree));
        // Write single singular value
        std::memcpy(&temporary_extrap_models[num_numerical_fm_rows*jump+(1+_parameters->spline_degree)],&singular_value[0],sizeof(double));

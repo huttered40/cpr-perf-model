@@ -40,6 +40,9 @@ int main(int argc, char** argv){
 
   constexpr int nparam = 8;
   std::vector<performance_model::parameter_type> param_types(nparam,performance_model::parameter_type::NUMERICAL);
+  param_types[3]=performance_model::parameter_type::CATEGORICAL;
+  param_types[4]=performance_model::parameter_type::CATEGORICAL;
+  param_types[5]=performance_model::parameter_type::CATEGORICAL;
   char* dataset_file_path = argv[1];
   bool verbose = is_verbose();
 
@@ -75,15 +78,15 @@ int main(int argc, char** argv){
       shuffle_runtimes(nc,nparam,runtimes,configurations);
     }
   }
+  int nc2=nc;
   const double* c = &configurations[0];
   const double* r = &runtimes[0];
   bool is_trained = interpolator->train(nc,c,r,false,&interpolator_fit_info);
   assert(is_trained);
 
-  nc = runtimes.size();
   c = &configurations[0];
   r = &runtimes[0];
-  is_trained = extrapolator->train(nc,c,r,false,&extrapolator_fit_info);
+  is_trained = extrapolator->train(nc2,c,r,false,&extrapolator_fit_info);
   assert(is_trained);
 
   interpolator->get_hyperparameters(interpolator_pack);
@@ -92,11 +95,12 @@ int main(int argc, char** argv){
   print_model_info(interpolator_fit_info);
   print_model_info(extrapolator_fit_info);
 
-  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,interpolator_pack,extrapolator_pack,interpolator_fit_info,extrapolator_fit_info,argv[3],verbose);
+  evaluate(nparam,test_runtimes.size(),test_runtimes,test_configurations,interpolator,extrapolator,
+           interpolator_pack,extrapolator_pack,interpolator_fit_info,extrapolator_fit_info,argv[3],verbose);
 
   if (argc>5){
     interpolator->write_to_file(argv[5]);
-    interpolator->read_from_file(argv[5]);
+    interpolator->read_from_file(argv[45]);
   }
   if (argc>6){
     extrapolator->write_to_file(argv[6]);

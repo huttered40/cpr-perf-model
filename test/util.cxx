@@ -316,6 +316,7 @@ void evaluate(int nparam,
   for (int i=0; i<size; i++){
     double start_inference_latency = get_wall_time();
     double runtime_prediction = performance_model::predict(&configurations[i*nparam],interpolator,extrapolator);
+    //std::cout << runtime_prediction << " " << runtimes[i] << std::endl;
     double inference_latency = get_wall_time() - start_inference_latency;
     info.avg_inference_latency += inference_latency;
     double local_logq_error = log(runtime_prediction / runtimes[i]);

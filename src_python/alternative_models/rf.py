@@ -17,7 +17,7 @@ def main(args):
     data_list = training_df.columns[args.data_columns].tolist()
 
     (training_configurations,training_data,training_set_size,test_configurations,test_data,test_set_size,mode_range_min,mode_range_max)\
-      = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,args.test_set_size,args.mode_range_min,args.mode_range_max)
+      = extract_datasets(training_df,test_df,param_list,data_list,args.training_set_size,args.test_set_size,args.mode_range_min,args.mode_range_max,args.train_range_start_idx,args.train_range_end_idx,args.test_range_start_idx,args.test_range_end_idx)
     training_configurations,training_data = transform_dataset(args.predictor_transform_type,args.response_transform_type,training_configurations,training_data)
 
     timers = []
