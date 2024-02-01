@@ -18,8 +18,8 @@ public:
   piecewise_parameter_pack& operator=(const piecewise_parameter_pack& rhs) = delete;
   virtual void get(parameter_pack& rhs) const override;
   virtual void set(const parameter_pack& rhs) override;
-  virtual void write_to_file(std::ofstream& file_path) const;
-  virtual void read_from_file(std::ifstream& file_path);
+  virtual void write_to_file(std::ofstream& file_path) const override;
+  virtual void read_from_file(std::ifstream& file_path) override;
 
   int num_dimensions;
   int num_knots;
@@ -36,8 +36,8 @@ public:
   tensor_parameter_pack& operator=(const tensor_parameter_pack& rhs) = delete;
   virtual void get(parameter_pack& rhs) const override;
   virtual void set(const parameter_pack& rhs) override;
-  virtual void write_to_file(std::ofstream& file_path) const;
-  virtual void read_from_file(std::ifstream& file_path);
+  virtual void write_to_file(std::ofstream& file_path) const override;
+  virtual void read_from_file(std::ifstream& file_path) override;
 
   int num_tensor_elements;
   double* tensor_elements;
@@ -51,8 +51,8 @@ public:
   cpr_parameter_pack& operator=(const cpr_parameter_pack& rhs) = delete;
   virtual void get(parameter_pack& rhs) const override;
   virtual void set(const parameter_pack& rhs) override;
-  virtual void write_to_file(std::ofstream& file_path) const;
-  virtual void read_from_file(std::ifstream& file_path);
+  virtual void write_to_file(std::ofstream& file_path) const override;
+  virtual void read_from_file(std::ifstream& file_path) override;
 
   int cp_rank;
   // mode-lengths per mode of tensor can be attained via num_partitions_per_dimension
@@ -68,8 +68,8 @@ public:
   cprg_parameter_pack& operator=(const cprg_parameter_pack& rhs) = delete;
   virtual void get(parameter_pack& rhs) const override;
   virtual void set(const parameter_pack& rhs) override;
-  virtual void write_to_file(std::ofstream& file_path) const;
-  virtual void read_from_file(std::ifstream& file_path);
+  virtual void write_to_file(std::ofstream& file_path) const override;
+  virtual void read_from_file(std::ifstream& file_path) override;
 
   int spline_degree;
   int num_models;

@@ -16,8 +16,8 @@ public:
 
   virtual void get(hyperparameter_pack& rhs) const override;
   virtual void set(const hyperparameter_pack& rhs) override;
-  virtual void write_to_file(std::ofstream& file) const;
-  virtual void read_from_file(std::ifstream& file);
+  virtual void write_to_file(std::ofstream& file) const override;
+  virtual void read_from_file(std::ifstream& file) override;
 
   int partitions_per_dimension;
   int observations_per_partition;
@@ -35,8 +35,8 @@ public:
 
   virtual void get(hyperparameter_pack& rhs) const override;
   virtual void set(const hyperparameter_pack& rhs) override;
-  virtual void write_to_file(std::ofstream& file) const;
-  virtual void read_from_file(std::ifstream& file);
+  virtual void write_to_file(std::ofstream& file) const override;
+  virtual void read_from_file(std::ifstream& file) override;
 
   int cp_rank;
   double regularization;
@@ -61,8 +61,8 @@ public:
 
   virtual void get(hyperparameter_pack& rhs) const override;
   virtual void set(const hyperparameter_pack& rhs) override;
-  virtual void write_to_file(std::ofstream& file) const;
-  virtual void read_from_file(std::ifstream& file);
+  virtual void write_to_file(std::ofstream& file) const override;
+  virtual void read_from_file(std::ifstream& file) override;
 
   int max_spline_degree;
   int max_training_set_size;// number of elements to consider starting from the largest observed
