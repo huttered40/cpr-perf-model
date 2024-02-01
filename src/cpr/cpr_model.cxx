@@ -1045,7 +1045,7 @@ double cpr_model::predict(const double* configuration) const{
       if (do_i_want_to_print_out){
         std::cout << model_val << " " << decisions[0] << " " << decisions[1] << " " << configuration[0] << " " << configuration[1] << std::endl;
       }
-      //assert(model_val>0);
+      assert(model_val>0);
       return std::max(MIN_POS_RUNTIME,model_val);// Only way MIN_POS_RUNTIME is used is if linear extrapolation (decisions 1 or 2) is used  and it is inaccurate.
 }
 
@@ -1198,7 +1198,7 @@ bool cpr_model::train(int& num_configurations, const double*& configurations, co
        // For interpolation, we first minimize mean squared error using log-transformed data
        auto _T_ = Tsparse;
        if (_hyperparameters->runtime_transform == runtime_transformation::LOG){
-         CTF::Sparse_log(&_T_); 
+         sparse_log(&_T_);
        }
 
        int num_re_inits = 0;
