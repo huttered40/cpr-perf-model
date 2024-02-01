@@ -23,10 +23,94 @@
 namespace performance_model{
 
 template<typename DataType>
+void sparse_add(CTF::Tensor<DataType>* T, CTF::Tensor<DataType>* M, double alpha, double beta){
+  IASSERT(T->order == M->order);
+  IASSERT(T->is_sparse && M->is_sparse);
+
+  int64_t npair1,npair2;
+  CTF::Pair<DataType>* pairs1;
+  CTF::Pair<DataType>* pairs2;
+
+  npair1 = T->nnz_loc;
+  npair2 = M->nnz_loc;
+  IASSERT(npair1==npair2);
+  for (int i=0; i<T->order; i++){
+    IASSERT(T->edge_map[i].calc_phys_phase() == M->edge_map[i].calc_phys_phase());
+  }
+  pairs1 = (CTF::Pair<DataType>*)T->data;
+  pairs2 = (CTF::Pair<DataType>*)M->data;
+
+  for(int64_t i=0;i<npair1;i++){
+     pairs1[i].d = alpha*pairs1[i].d + beta*pairs2[i].d;
+  }
+}
+
+template<typename DataType>
+void sparse_mul(CTF::Tensor<DataType>* T, CTF::Tensor<DataType>* M){
+  IASSERT(T->order == M->order);
+  IASSERT(T->is_sparse && M->is_sparse);
+
+  int64_t npair1,npair2;
+  CTF::Pair<DataType>* pairs1;
+  CTF::Pair<DataType>* pairs2;
+
+  npair1 = T->nnz_loc;
+  npair2 = M->nnz_loc;
+  IASSERT(npair1==npair2);
+  for (int i=0; i<T->order; i++){
+    IASSERT(T->edge_map[i].calc_phys_phase() == M->edge_map[i].calc_phys_phase());
+  }
+  pairs1 = (CTF::Pair<DataType>*)T->data;
+  pairs2 = (CTF::Pair<DataType>*)M->data;
+
+  for(int64_t i=0;i<npair1;i++){
+     pairs1[i].d *= pairs2[i].d;
+  }
+}
+
+template<typename DataType>
+void sparse_exp(CTF::Tensor<DataType>* T){
+  IASSERT(T->is_sparse);
+
+  int64_t npair;
+  CTF::Pair<DataType>* pairs;
+  npair = T->nnz_loc;
+  pairs = (CTF::Pair<DataType>*)T->data;
+  for(int64_t i=0;i<npair;i++){
+     pairs[i].d = std::exp(pairs[i].d);
+  }
+}
+
+template<typename DataType>
+void sparse_log(CTF::Tensor<DataType>* T){
+  IASSERT(T->is_sparse);
+
+  int64_t npair;
+  CTF::Pair<DataType>* pairs;
+  npair = T->nnz_loc;
+  pairs = (CTF::Pair<DataType>*)T->data;
+  for(int64_t i=0;i<npair;i++){
+    pairs[i].d = std::log(pairs[i].d);
+  }
+}
+
+template<typename DataType>
+void get_index_tensor(CTF::Tensor<DataType>* T){
+  IASSERT(T->is_sparse);
+  int64_t npair;
+  CTF::Pair<DataType>* pairs;
+  npair = T->nnz_loc;
+  pairs = (CTF::Pair<DataType>*)T->data;
+  for(int64_t i=0;i<npair;i++){
+    pairs[i].d = 1.0;
+  }
+}
+
+template<typename DataType>
 void sparse_inv(CTF::Tensor<DataType>* T){
   IASSERT(T->is_sparse);
   int64_t npair = T->nnz_loc;
-  CTF::Pair<DataType> * pairs = (CTF::Pair<DataType> *)T->data;
+  CTF::Pair<DataType>* pairs = (CTF::Pair<DataType>*)T->data;
   for(int64_t i=0;i<npair;i++){
      pairs[i].d = 1./pairs[i].d;
   }
@@ -36,7 +120,7 @@ template<typename DataType>
 void sparse_add1(CTF::Tensor<DataType>* T){
   IASSERT(T->is_sparse);
   int64_t npair = T->nnz_loc;
-  CTF::Pair<DataType> * pairs = (CTF::Pair<DataType> *)T->data;
+  CTF::Pair<DataType>* pairs = (CTF::Pair<DataType>*)T->data;
   for(int64_t i=0;i<npair;i++){
      pairs[i].d = 1.+pairs[i].d;
   }
@@ -47,9 +131,9 @@ void sparse_copy(CTF::Tensor<DataType>* T1, CTF::Tensor<DataType>* T2){
   IASSERT(T1->is_sparse);
   IASSERT(T2->is_sparse);
   int64_t npair1 = T1->nnz_loc;
-  CTF::Pair<DataType> * pairs1 = (CTF::Pair<DataType> *)T1->data;
+  CTF::Pair<DataType>* pairs1 = (CTF::Pair<DataType>*)T1->data;
   int64_t npair2 = T2->nnz_loc;
-  CTF::Pair<DataType> * pairs2 = (CTF::Pair<DataType> *)T2->data;
+  CTF::Pair<DataType>* pairs2 = (CTF::Pair<DataType>*)T2->data;
   IASSERT(npair1==npair2);
   for(int64_t i=0;i<npair1;i++){
      pairs1[i].d = pairs2[i].d;
@@ -60,7 +144,7 @@ template<typename DataType>
 void sparse_neg(CTF::Tensor<DataType>* T){
   IASSERT(T->is_sparse);
   int64_t npair = T->nnz_loc;
-  CTF::Pair<DataType> * pairs = (CTF::Pair<DataType> *)T->data;
+  CTF::Pair<DataType>* pairs = (CTF::Pair<DataType>*)T->data;
   for(int64_t i=0;i<npair;i++){
      pairs[i].d = (-1.)*pairs[i].d;
   }
@@ -185,14 +269,14 @@ struct MLogQ2{
         CTF::Tensor<> M_reciprocal3 = *T;
 
         sparse_inv(&M);
-        CTF::Sparse_mul(&M_reciprocal3,&M);
+        sparse_mul(&M_reciprocal3,&M);
         sparse_neg(&M);
-        CTF::Sparse_log(&M_reciprocal3);
+        sparse_log(&M_reciprocal3);
         sparse_copy(Hessian,&M_reciprocal3);
         sparse_add1(Hessian);
-        CTF::Sparse_mul(&M_reciprocal3,&M);
-        CTF::Sparse_mul(&M,&M);
-        CTF::Sparse_mul(Hessian,&M);
+        sparse_mul(&M_reciprocal3,&M);
+        sparse_mul(&M,&M);
+        sparse_mul(Hessian,&M);
 
         std::vector<CTF::Tensor<>*> lst_mat;
         std::vector<int> fm_mode_types(2,NS);
@@ -355,7 +439,7 @@ double cpd_als(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
         // M has same sparsity pattern as X, which has same sparsity pattern as T_in
         // Now, add M with T_in
 
-        CTF::Sparse_add(&M,T_in,1,-1);
+        sparse_add(&M,T_in,1,-1);
         err = M.norm2()/sqrt(nnz);
         err *= err;
         std::cout << "Loss: " << err << std::endl;
@@ -395,7 +479,7 @@ double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
 */
     int n_newton_iterations=0;
     auto TT = *T_in;
-    CTF::Sparse_log(&TT);
+    sparse_log(&TT);
     for (int i=0; i<max_nsweeps; i++){
       if (i>0){
         int _n_newton_iterations = MLogQ2::step(dw,T_in,O,X,reg,barrier_start,barrier_stop,barrier_reduction_factor,factor_matrix_convergence_tolerance, max_newton_iter);
@@ -420,9 +504,9 @@ double cpd_amn(CTF::World* dw, CTF::Tensor<>* T_in, CTF::Tensor<>* O, std::vecto
         for (int j=0; j<X.size(); j++) mode_list[j]=j;
         CTF::TTTP(&M,X.size(),&mode_list[0],&X[0],true);
         auto P = M;
-        CTF::Sparse_log(&P);
+        sparse_log(&P);
 
-        CTF::Sparse_add(&P,&TT,-1.,1.);
+        sparse_add(&P,&TT,-1.,1.);
         err = P.norm2(); err*=err; err/=nnz;
         std::cout << "Loss: " << err << std::endl;
         if (err < model_convergence_tolerance) break;
