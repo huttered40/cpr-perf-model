@@ -102,6 +102,7 @@ model_fit_info::model_fit_info(const model_fit_info& rhs){
 model_fit_info& model_fit_info::operator=(const model_fit_info& rhs){
   this->training_error = rhs.training_error;
   this->num_distinct_configurations = rhs.num_distinct_configurations;
+  return *this;
 }
 model_fit_info::~model_fit_info(){
 }

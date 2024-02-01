@@ -532,7 +532,9 @@ double get_midpoint_of_two_nodes(int idx, int num_nodes, const double* _nodes, p
       // Corner case
       if (idx==(num_nodes-1)) idx--;
       return _nodes[idx]*1. + (_nodes[idx+1]-_nodes[idx])/2.;
-  } else assert(0);
+  }
+  assert(0);
+  return -1;
 }
 
 void partition_space(int max_num_obs_per_cell, int start_idx, int end_idx, std::vector<double>& features, std::vector<double>& nodes, double max_spacing_factor){
@@ -666,6 +668,7 @@ tensor_model_fit_info& tensor_model_fit_info::operator=(const tensor_model_fit_i
   this->num_tensor_elements = rhs.num_tensor_elements;
   this->tensor_density = rhs.tensor_density;
   this->quadrature_error = rhs.quadrature_error;
+  return *this;
 }
 tensor_model_fit_info::~tensor_model_fit_info(){
 }
@@ -679,6 +682,7 @@ cpr_model_fit_info& cpr_model_fit_info::operator=(const cpr_model_fit_info& rhs)
   this->tensor_model_fit_info::operator=(rhs);
   this->loss = rhs.loss;
   this->low_rank_approximation_error = rhs.low_rank_approximation_error;
+  return *this;
 }
 cpr_model_fit_info::~cpr_model_fit_info(){
 }
@@ -688,6 +692,7 @@ cprg_model_fit_info::cprg_model_fit_info(const cprg_model_fit_info& rhs) : cpr_m
 }
 cprg_model_fit_info& cprg_model_fit_info::operator=(const cprg_model_fit_info& rhs){
   this->cpr_model_fit_info::operator=(rhs);
+  return *this;
 }
 cprg_model_fit_info::~cprg_model_fit_info(){
 }
