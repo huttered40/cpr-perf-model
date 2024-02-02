@@ -33,8 +33,8 @@ public:
   MPI_Comm cm_training;
   MPI_Comm cm_data;
   bool aggregate_obs_across_communicator;
-  int nparam;
-  int min_num_distinct_observed_configurations;
+  size_t nparam;
+  size_t min_num_distinct_observed_configurations;
 };
 
 };

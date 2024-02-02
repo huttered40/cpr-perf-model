@@ -52,7 +52,7 @@ public:
   cpr_model& operator=(const cpr_model& rhs) = delete;
   virtual ~cpr_model() override;
   virtual double predict(const double* configuration) const override;
-  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset=false, model_fit_info* fit_info=nullptr) override;
+  virtual bool train(size_t& num_configurations, const double*& configurations, const double*& runtimes, model_fit_info* fit_info=nullptr) override;
   virtual void write_to_file(const char* file_path) const override;
   virtual void read_from_file(const char* file_path) override;
   void get_hyperparameters(hyperparameter_pack& pack) const override;
@@ -63,11 +63,10 @@ public:
 protected:
   void write_to_file(std::ofstream& file) const;
   void read_from_file(std::ifstream& file);
-  void init(std::vector<int>& cells_info, const std::vector<double> custom_grid_pts={},
-    int num_configurations=-1, const double* features=nullptr);
+  void init(std::vector<int>& cells_info, size_t num_configurations=0, const double* features=nullptr);
 
   bool m_is_valid;
-  int order;
+  size_t order;
   std::vector<int> numerical_modes;
   std::vector<std::vector<int>> Projected_Omegas;
 };
@@ -79,7 +78,7 @@ public:
   cprg_model& operator=(const cprg_model& rhs) = delete;
   virtual ~cprg_model() override;
   virtual double predict(const double* configuration) const override;
-  virtual bool train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset=false, model_fit_info* fit_info=nullptr) override;
+  virtual bool train(size_t& num_configurations, const double*& configurations, const double*& runtimes, model_fit_info* fit_info=nullptr) override;
   virtual void write_to_file(const char* file_path) const override;
   virtual void read_from_file(const char* file_path) override;
   void get_hyperparameters(hyperparameter_pack& pack) const override;

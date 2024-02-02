@@ -7,7 +7,7 @@
 
 namespace performance_model{
 
-piecewise_hyperparameter_pack::piecewise_hyperparameter_pack(int nparam) : hyperparameter_pack(nparam){
+piecewise_hyperparameter_pack::piecewise_hyperparameter_pack(size_t nparam) : hyperparameter_pack(nparam){
   // Default
   this->partitions_per_dimension=8;
   this->observations_per_partition=32;
@@ -18,9 +18,9 @@ piecewise_hyperparameter_pack::piecewise_hyperparameter_pack(int nparam) : hyper
   this->cm_data=MPI_COMM_SELF;
   this->aggregate_obs_across_communicator=false;
   this->partition_spacing = new parameter_range_partition[nparam];
-  for (int i=0; i<nparam; i++) this->partition_spacing[i]=parameter_range_partition::GEOMETRIC;
+  for (size_t i=0; i<nparam; i++) this->partition_spacing[i]=parameter_range_partition::GEOMETRIC;
   this->partition_info = new int[nparam];
-  for (int i=0; i<nparam; i++) this->partition_info[i]=this->partitions_per_dimension;
+  for (size_t i=0; i<nparam; i++) this->partition_info[i]=this->partitions_per_dimension;
 }
 
 piecewise_hyperparameter_pack::piecewise_hyperparameter_pack(const piecewise_hyperparameter_pack& rhs) : hyperparameter_pack(rhs){
@@ -28,9 +28,9 @@ piecewise_hyperparameter_pack::piecewise_hyperparameter_pack(const piecewise_hyp
   this->observations_per_partition=rhs.observations_per_partition;
   this->max_partition_spacing_factor=rhs.max_partition_spacing_factor;
   this->partition_spacing = new parameter_range_partition[rhs.nparam];
-  for (int i=0; i<rhs.nparam; i++) this->partition_spacing[i]=rhs.partition_spacing[i];
+  for (size_t i=0; i<rhs.nparam; i++) this->partition_spacing[i]=rhs.partition_spacing[i];
   this->partition_info = new int[rhs.nparam];
-  for (int i=0; i<rhs.nparam; i++) this->partition_info[i]=rhs.partition_info[i];
+  for (size_t i=0; i<rhs.nparam; i++) this->partition_info[i]=rhs.partition_info[i];
 }
 
 void piecewise_hyperparameter_pack::get(hyperparameter_pack& rhs) const{
@@ -40,8 +40,8 @@ void piecewise_hyperparameter_pack::get(hyperparameter_pack& rhs) const{
   rhs_derived.partitions_per_dimension=this->partitions_per_dimension;
   rhs_derived.observations_per_partition=this->observations_per_partition;
   rhs_derived.max_partition_spacing_factor=this->max_partition_spacing_factor;
-  for (int i=0; i<rhs_derived.nparam; i++) rhs_derived.partition_spacing[i]=this->partition_spacing[i];
-  for (int i=0; i<rhs_derived.nparam; i++) rhs_derived.partition_info[i]=this->partition_info[i];
+  for (size_t i=0; i<rhs_derived.nparam; i++) rhs_derived.partition_spacing[i]=this->partition_spacing[i];
+  for (size_t i=0; i<rhs_derived.nparam; i++) rhs_derived.partition_info[i]=this->partition_info[i];
 }
 
 void piecewise_hyperparameter_pack::set(const hyperparameter_pack& rhs){
@@ -51,8 +51,8 @@ void piecewise_hyperparameter_pack::set(const hyperparameter_pack& rhs){
   this->partitions_per_dimension=rhs_derived.partitions_per_dimension;
   this->observations_per_partition=rhs_derived.observations_per_partition;
   this->max_partition_spacing_factor=rhs_derived.max_partition_spacing_factor;
-  for (int i=0; i<rhs_derived.nparam; i++) this->partition_spacing[i]=rhs_derived.partition_spacing[i];
-  for (int i=0; i<rhs_derived.nparam; i++) this->partition_info[i]=rhs_derived.partition_info[i];
+  for (size_t i=0; i<rhs_derived.nparam; i++) this->partition_spacing[i]=rhs_derived.partition_spacing[i];
+  for (size_t i=0; i<rhs_derived.nparam; i++) this->partition_info[i]=rhs_derived.partition_info[i];
 }
 
 piecewise_hyperparameter_pack::~piecewise_hyperparameter_pack(){
@@ -65,11 +65,11 @@ void piecewise_hyperparameter_pack::write_to_file(std::ofstream& file) const{
   this->hyperparameter_pack::write_to_file(file);
   file << this->partitions_per_dimension << "\n";
   file << this->observations_per_partition << "\n";
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i>0) file << ",";
     file << this->partition_info[i];
   } file << "\n";
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i>0) file << ",";
     if (partition_spacing[i]==parameter_range_partition::SINGLE) file << "SINGLE";
     else if (partition_spacing[i]==parameter_range_partition::AUTOMATIC) file << "AUTOMATIC";
@@ -88,12 +88,12 @@ void piecewise_hyperparameter_pack::read_from_file(std::ifstream& file){
   if (this->partition_info == nullptr) this->partition_info = new int[this->nparam];
   if (this->partition_spacing == nullptr) this->partition_spacing = new parameter_range_partition[this->nparam];
   std::string temp;
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     this->partition_info[i] = std::stoi(temp);
   }
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     if (temp == "SINGLE") partition_spacing[i] =parameter_range_partition::SINGLE;
@@ -105,7 +105,7 @@ void piecewise_hyperparameter_pack::read_from_file(std::ifstream& file){
   file >> this->max_partition_spacing_factor;
 }
 
-cpr_hyperparameter_pack::cpr_hyperparameter_pack(int nparam) : piecewise_hyperparameter_pack(nparam){
+cpr_hyperparameter_pack::cpr_hyperparameter_pack(size_t nparam) : piecewise_hyperparameter_pack(nparam){
   // Default
   this->partitions_per_dimension=16;
   this->observations_per_partition=32;
@@ -127,8 +127,8 @@ cpr_hyperparameter_pack::cpr_hyperparameter_pack(int nparam) : piecewise_hyperpa
   this->cm_training=MPI_COMM_SELF;
   this->cm_data=MPI_COMM_SELF;
   this->aggregate_obs_across_communicator=false;
-  for (int i=0; i<nparam; i++) this->partition_spacing[i]=parameter_range_partition::GEOMETRIC;
-  for (int i=0; i<nparam; i++) this->partition_info[i]=this->partitions_per_dimension;
+  for (size_t i=0; i<nparam; i++) this->partition_spacing[i]=parameter_range_partition::GEOMETRIC;
+  for (size_t i=0; i<nparam; i++) this->partition_info[i]=this->partitions_per_dimension;
 }
 
 cpr_hyperparameter_pack::cpr_hyperparameter_pack(const cpr_hyperparameter_pack& rhs) : piecewise_hyperparameter_pack(rhs){
@@ -219,7 +219,7 @@ void cpr_hyperparameter_pack::read_from_file(std::ifstream& file){
   file >> this->optimization_barrier_reduction_factor;
 }
 
-cprg_hyperparameter_pack::cprg_hyperparameter_pack(int nparam) : cpr_hyperparameter_pack(nparam){
+cprg_hyperparameter_pack::cprg_hyperparameter_pack(size_t nparam) : cpr_hyperparameter_pack(nparam){
   // Default
   this->max_spline_degree=1;
   this->max_training_set_size=INT_MAX;

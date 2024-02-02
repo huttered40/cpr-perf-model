@@ -21,11 +21,12 @@ public:
   virtual void write_to_file(std::ofstream& file_path) const override;
   virtual void read_from_file(std::ifstream& file_path) override;
 
-  int num_dimensions;
-  int num_knots;
+  size_t num_dimensions;
+  size_t num_knots;
+  //Below: use of int instead of size_t due to interoperability with CTF
   std::vector<int> num_partitions_per_dimension;
   std::vector<double> knot_positions;
-  std::vector<int> knot_index_offsets;
+  std::vector<size_t> knot_index_offsets;
 };
 
 class tensor_parameter_pack : public piecewise_parameter_pack{
@@ -39,7 +40,7 @@ public:
   virtual void write_to_file(std::ofstream& file_path) const override;
   virtual void read_from_file(std::ifstream& file_path) override;
 
-  int num_tensor_elements;
+  size_t num_tensor_elements;
   double* tensor_elements;
 };
 
@@ -54,9 +55,9 @@ public:
   virtual void write_to_file(std::ofstream& file_path) const override;
   virtual void read_from_file(std::ifstream& file_path) override;
 
-  int cp_rank;
+  size_t cp_rank;
   // mode-lengths per mode of tensor can be attained via num_partitions_per_dimension
-  int num_factor_matrix_elements;
+  size_t num_factor_matrix_elements;
   double* factor_matrix_elements;
 };
 
@@ -71,8 +72,8 @@ public:
   virtual void write_to_file(std::ofstream& file_path) const override;
   virtual void read_from_file(std::ifstream& file_path) override;
 
-  int spline_degree;
-  int num_models;
+  size_t spline_degree;
+  size_t num_models;
   double* global_models;
 };
 

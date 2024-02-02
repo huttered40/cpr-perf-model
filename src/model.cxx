@@ -17,7 +17,7 @@
 
 namespace performance_model{
 
-static bool aggregate_observations(int& num_configurations, const double*& configurations, const double*& runtimes, int order, MPI_Comm cm){
+static bool aggregate_observations(size_t& num_configurations, const double*& configurations, const double*& runtimes, size_t order, MPI_Comm cm){
   // Return value indicates whether configurations and runtimes need to be explicitly deleted
   int rank,size,lnc;
   int internal_tag=0;
@@ -29,11 +29,11 @@ static bool aggregate_observations(int& num_configurations, const double*& confi
   size_t active_size = size;
   size_t active_rank = rank;
   size_t active_mult = 1;
-  int local_num_configurations = num_configurations;
+  size_t local_num_configurations = num_configurations;
   std::vector<double> local_configurations(num_configurations*order);
   std::vector<double> local_runtimes(num_configurations);
-  for (int i=0; i<num_configurations; i++){
-    for (int j=0; j<order; j++){
+  for (size_t i=0; i<num_configurations; i++){
+    for (size_t j=0; j<order; j++){
       local_configurations[i*order+j]=configurations[i*order+j];
     }
     local_runtimes[i]=runtimes[i];
@@ -42,7 +42,7 @@ static bool aggregate_observations(int& num_configurations, const double*& confi
     if (active_rank % 2 == 1){
       int partner = (active_rank-1)*active_mult;
       // Send sizes before true message so that receiver can be aware of the array sizes for subsequent communication
-      PMPI_Send(&local_num_configurations,1,MPI_INT,partner,internal_tag,cm);
+      PMPI_Send(&local_num_configurations,1,MPI_UNSIGNED,partner,internal_tag,cm);
       if (local_num_configurations>0){
         // Send active kernels with keys
         PMPI_Send(&local_configurations[0],local_num_configurations*order,MPI_DOUBLE,partner,internal_tag1,cm);
@@ -67,7 +67,7 @@ static bool aggregate_observations(int& num_configurations, const double*& confi
     active_mult *= 2;
   }
   // Goal is to replace, not to concatenate
-  PMPI_Bcast(&local_num_configurations,1,MPI_INT,0,cm);
+  PMPI_Bcast(&local_num_configurations,1,MPI_UNSIGNED,0,cm);
   assert(num_configurations <= local_num_configurations);
   if (local_num_configurations == 0){
     return false;
@@ -82,8 +82,8 @@ static bool aggregate_observations(int& num_configurations, const double*& confi
   assert(new_runtimes != runtimes);
   double* new_configurations = new double[local_num_configurations*order];
   assert(new_configurations != configurations);
-  for (int i=0; i<local_num_configurations; i++){
-    for (int j=0; j<order; j++){
+  for (size_t i=0; i<local_num_configurations; i++){
+    for (size_t j=0; j<order; j++){
       new_configurations[i*order+j]=local_configurations[i*order+j];
     }
     new_runtimes[i]=local_runtimes[i];
@@ -107,7 +107,7 @@ model_fit_info& model_fit_info::operator=(const model_fit_info& rhs){
 model_fit_info::~model_fit_info(){
 }
 
-model::model(int nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack){
+model::model(size_t nparam, const parameter_type* parameter_types, const hyperparameter_pack* pack){
   this->hyperparameters = new hyperparameter_pack(pack==nullptr ? nparam : *pack);
   this->parameters = new parameter_pack();
   this->nparam = nparam;
@@ -116,13 +116,13 @@ model::model(int nparam, const parameter_type* parameter_types, const hyperparam
   this->param_types = new parameter_type[nparam];
   this->param_range_min = new double[nparam];
   this->param_range_max = new double[nparam];
-  for (int i=0; i<nparam; i++){
+  for (size_t i=0; i<nparam; i++){
     this->param_types[i] = parameter_types[i];
     this->param_range_min[i] = DBL_MAX;
     this->param_range_max[i] = DBL_MIN;
   }
 }
-double model::predict(const double* configuration) const{
+double model::predict(const double*) const{
   assert(0);
   return 0;
 }
@@ -138,7 +138,7 @@ model::~model(){
   this->param_range_min = nullptr;
   this->param_range_max = nullptr;
 }
-bool model::train(int& num_configurations, const double*& configurations, const double*& runtimes, bool save_dataset, model_fit_info* fit_info){
+bool model::train(size_t& num_configurations, const double*& configurations, const double*& runtimes, model_fit_info* fit_info){
   int world_size_for_training,world_size_for_data_aggregation;
   MPI_Comm_size(this->hyperparameters->cm_training,&world_size_for_training);
   MPI_Comm_size(this->hyperparameters->cm_data,&world_size_for_data_aggregation);
@@ -163,8 +163,8 @@ bool model::train(int& num_configurations, const double*& configurations, const 
   // Check how many distinct configurations there are.
   std::set<std::vector<double>> distinct_configuration_dict;
   std::vector<double> config(this->nparam);
-  for (int i=0; i<num_configurations; i++){
-    for (int j=0; j<this->nparam; j++){
+  for (size_t i=0; i<num_configurations; i++){
+    for (size_t j=0; j<this->nparam; j++){
       config[j]=configurations[i*this->nparam+j];
     }
     distinct_configuration_dict.insert(config);
@@ -183,13 +183,13 @@ bool model::train(int& num_configurations, const double*& configurations, const 
   }
   distinct_configuration_dict.clear();
 
-  for (int i=0; i<num_configurations; i++){
-    for (int j=0; j<this->nparam; j++){
+  for (size_t i=0; i<num_configurations; i++){
+    for (size_t j=0; j<this->nparam; j++){
       this->param_range_min[j]=std::min(this->param_range_min[j],configurations[i*this->nparam+j]);
       this->param_range_max[j]=std::max(this->param_range_max[j],configurations[i*this->nparam+j]);
     }
   }
-  for (int j=0; j<this->nparam; j++){
+  for (size_t j=0; j<this->nparam; j++){
     if (this->param_range_max[j] < this->param_range_min[j]){
       if (this->allocated_data){
         delete[] configurations;
@@ -217,16 +217,16 @@ void model::read_from_file(const char* file_path){
 void model::write_to_file(std::ofstream& file) const{
   if (!file.is_open()) return;
   file << this->nparam << "\n";
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i>0) file << ",";
     if (param_types[i] == parameter_type::NUMERICAL) file << "NUMERICAL";
     else file << "CATEGORICAL";
   } file << "\n";
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i>0) file << ",";
     file << param_range_min[i];
   } file << "\n";
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i>0) file << ",";
     file << param_range_max[i];
   } file << "\n";
@@ -236,7 +236,7 @@ void model::write_to_file(std::ofstream& file) const{
 void model::read_from_file(std::ifstream& file){
   if (!file.is_open()) return;
   std::string temp;
-  int num_input_parameters;
+  size_t num_input_parameters;
   double temp_range;
   file >> num_input_parameters;
   assert(this->nparam == num_input_parameters);
@@ -245,19 +245,19 @@ void model::read_from_file(std::ifstream& file){
   assert(this->param_range_max != nullptr);
   assert(this->param_range_min != nullptr);
   assert(this->param_types != nullptr);
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     if (temp == "NUMERICAL") assert(param_types[i] == parameter_type::NUMERICAL);
     else if (temp == "CATEGORICAL") assert(param_types[i] == parameter_type::CATEGORICAL);
   }
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     temp_range = std::stod(temp);
     assert(temp_range == param_range_min[i]);
   }
-  for (int i=0; i<this->nparam; i++){
+  for (size_t i=0; i<this->nparam; i++){
     if (i==(this->nparam-1)) getline(file,temp,'\n');
     else getline(file,temp,',');
     temp_range = std::stod(temp);
@@ -272,13 +272,13 @@ double model::get_min_observed_parameter_value(int parameter_id) const{
 double model::get_max_observed_parameter_value(int parameter_id) const{
   return this->param_range_max[parameter_id];
 }
-void model::get_hyperparameters(hyperparameter_pack& rhs) const{
+void model::get_hyperparameters(hyperparameter_pack&) const{
   assert(0);
 }
-void model::set_hyperparameters(const hyperparameter_pack& pack){
+void model::set_hyperparameters(const hyperparameter_pack&){
   assert(0);
 }
-int model::get_num_inputs() const{
+size_t model::get_num_inputs() const{
   return this->nparam;
 }
 void model::get_parameters(parameter_pack& rhs) const{

@@ -14,6 +14,7 @@ void print(const std::string_view fmt_str, Args&&... args){
   fputs(outstr.c_str(),stdout);
 }
 */
+#include <iostream>
 
 struct evaluation_info{
   double avg_inference_latency{0};
@@ -32,34 +33,37 @@ struct evaluation_info{
   double max_aps_error{0};
 };
 
-void shuffle_runtimes(int nc, int nparam, std::vector<double>& runtimes, std::vector<double>& configurations);
+void shuffle_runtimes(size_t nc, size_t nparam, std::vector<double>& runtimes, std::vector<double>& configurations);
 
 template<typename T>
 void print(const char* msg, T val){
-  std::cout << msg << val << "\n";
+  std::cout << msg << val << '\n';
 }
 
 template<typename T, typename U>
 void print(const char* msg, T val1, U val2){
-  std::cout << msg << val1 << ": " << val2 << "\n";
+  std::cout << msg << val1 << ": " << val2 << '\n';
 }
 
 void print_model_info(const performance_model::cpr_model_fit_info& info);
 
 void custom_assert(bool alert, const char* msg);
 
+/*
 double get_wall_time();
+double get_cpu_time();
+*/
 
 std::vector<std::string> get_cpr_model_hyperparameter_options();
 
-void set_cpr_param_pack(int nparam, performance_model::cpr_hyperparameter_pack& arg_pack, std::vector<std::string>&& hyperparameter_options = get_cpr_model_hyperparameter_options(), bool verbose=false);
+void set_cpr_param_pack(size_t nparam, performance_model::cpr_hyperparameter_pack& arg_pack, std::vector<std::string>&& hyperparameter_options = get_cpr_model_hyperparameter_options(), bool verbose=false);
 
-void set_cprg_param_pack(int nparam, performance_model::cprg_hyperparameter_pack& arg_pack, bool verbose=false);
+void set_cprg_param_pack(size_t nparam, performance_model::cprg_hyperparameter_pack& arg_pack, bool verbose=false);
 
 bool is_verbose();
 
-void evaluate(int nparam,
-              int size,
+void evaluate(size_t nparam,
+              size_t size,
               std::vector<double>& runtimes,
               std::vector<double>& configurations,
               performance_model::model* interpolator,

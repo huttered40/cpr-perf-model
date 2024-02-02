@@ -13,7 +13,7 @@
 #include "util.h"
 #include "cp_perf_model.h"
 
-void get_dataset(const char* dataset_file_path, int order, std::vector<double>& configurations, std::vector<double>& runtimes){
+void get_dataset(const char* dataset_file_path, size_t order, std::vector<double>& configurations, std::vector<double>& runtimes){
   std::ifstream my_file;
   my_file.open(dataset_file_path);
 
@@ -22,18 +22,18 @@ void get_dataset(const char* dataset_file_path, int order, std::vector<double>& 
   getline(my_file,temp_num,'\n');
   // Input from columns {1,2,3,4,5,6,10,11,12,13}
   // Data from columns {15}
-  int idx = 0;
+  size_t idx = 0;
   double min_matrix_dimension = 10000000;
   double max_matrix_dimension = 0;
   while (getline(my_file,temp_num,',')){
-    for (int i=0; i<6; i++){
+    for (size_t i=0; i<6; i++){
       getline(my_file,temp_num,',');
       configurations.push_back(atof(temp_num.c_str()));
     }
-    for (int i=0; i<3; i++){
+    for (size_t i=0; i<3; i++){
       getline(my_file,temp_num,',');
     }
-    for (int i=6; i<order; i++){
+    for (size_t i=6; i<order; i++){
       getline(my_file,temp_num,',');
       configurations.push_back(atof(temp_num.c_str()));
     }
@@ -43,10 +43,10 @@ void get_dataset(const char* dataset_file_path, int order, std::vector<double>& 
     getline(my_file,temp_num,'\n');// read in rest of line
     idx++;
 /*
-    for (int i=0; i<order; i++) std::cout << configurations[configurations.size()-order+i] << " ";
+    for (size_t i=0; i<order; i++) std::cout << configurations[configurations.size()-order+i] << " ";
     std::cout << runtimes[runtimes.size()-1] << "\n";
 */
-    for (int i=0; i<3; i++){
+    for (size_t i=0; i<3; i++){
       if (min_matrix_dimension > configurations[configurations.size()-order+i]) min_matrix_dimension = configurations[configurations.size()-order+i];
       if (max_matrix_dimension < configurations[configurations.size()-order+i]) max_matrix_dimension = configurations[configurations.size()-order+i];
     }
@@ -65,9 +65,9 @@ int main(int argc, char** argv){
 
   MPI_Init(&argc,&argv);
 
-  constexpr int nparam = 10;
+  constexpr size_t nparam = 10;
   std::vector<performance_model::parameter_type> param_types(nparam,performance_model::parameter_type::CATEGORICAL);
-  for (int i=0; i<6; i++){
+  for (size_t i=0; i<6; i++){
     param_types[i] = performance_model::parameter_type::NUMERICAL;
   }
   bool verbose = is_verbose();
@@ -77,17 +77,17 @@ int main(int argc, char** argv){
   performance_model::cprg_hyperparameter_pack extrapolator_pack(nparam);
   set_cprg_param_pack(nparam,extrapolator_pack,verbose);
 
-  for (int i=0; i<3; i++){
+  for (size_t i=0; i<3; i++){
     interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
     extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::GEOMETRIC;
   }
-  for (int i=3; i<6; i++){
+  for (size_t i=3; i<6; i++){
     interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
     extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::UNIFORM;
     interpolator_pack.partition_info[i]=2;
     extrapolator_pack.partition_info[i]=2;
   }
-  for (int i=6; i<nparam; i++){
+  for (size_t i=6; i<nparam; i++){
     interpolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
     extrapolator_pack.partition_spacing[i] = performance_model::parameter_range_partition::SINGLE;
   }
@@ -108,22 +108,22 @@ int main(int argc, char** argv){
   performance_model::cpr_model_fit_info interpolator_fit_info;
   performance_model::cprg_model_fit_info extrapolator_fit_info;
 
-  int nc = runtimes.size();
+  size_t nc = runtimes.size();
   if (argc>4){
-    if (atoi(argv[4])<nc){
-      nc = atoi(argv[4]);
+    if (std::stoul(argv[4])<nc){
+      nc = std::stoul(argv[4]);
       shuffle_runtimes(nc,nparam,runtimes,configurations);
     }
   }
-  int nc2=nc;
+  size_t nc2=nc;
   const double* c = &configurations[0];
   const double* r = &runtimes[0];
-  bool is_trained = interpolator->train(nc,c,r,false,&interpolator_fit_info);
+  bool is_trained = interpolator->train(nc,c,r,&interpolator_fit_info);
   assert(is_trained);
 
   c = &configurations[0];
   r = &runtimes[0];
-  is_trained = extrapolator->train(nc2,c,r,false,&extrapolator_fit_info);
+  is_trained = extrapolator->train(nc2,c,r,&extrapolator_fit_info);
   assert(is_trained);
 
   interpolator->get_hyperparameters(interpolator_pack);
